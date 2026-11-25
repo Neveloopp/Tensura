@@ -1,0 +1,5 @@
+declare module 'qrcode-terminal'
+declare module 'node-webpmux'
+declare module 'yt-search'
+declare module 'cfonts'
+declare module 'boxen'

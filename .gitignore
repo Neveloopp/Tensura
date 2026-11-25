@@ -1,0 +1,7 @@
+node_modules/
+Sessions/
+database/
+core/system/tmp/
+.env
+*.log
+.DS_Store

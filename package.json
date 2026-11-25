@@ -1,0 +1,48 @@
+{
+  "name": "tensura-bot-md",
+  "version": "1.0.0",
+  "description": "Tensura — versión recortada de Viko con grupos, descargas y stickers (incluye -aud).",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx index.ts",
+    "dev": "node --watch --import tsx index.ts",
+    "build": "node node_modules/typescript/bin/tsc --noEmit",
+    "check": "node node_modules/typescript/bin/tsc --noEmit",
+    "bench": "node --import tsx scripts/benchmark.ts",
+    "bench:load": "node --import tsx scripts/loadtime.ts"
+  },
+  "keywords": [
+    "whatsapp-bot",
+    "baileys",
+    "tensura",
+    "stickers",
+    "downloads"
+  ],
+  "author": "Tensura",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "axios": "^1.7.9",
+    "boxen": "^8.0.1",
+    "cfonts": "^3.3.0",
+    "chalk": "^5.4.1",
+    "dotenv": "^16.4.7",
+    "moment-timezone": "^0.5.46",
+    "node-webpmux": "^3.2.0",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0",
+    "yt-search": "^2.13.1",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.33.5"
+  }
+}
