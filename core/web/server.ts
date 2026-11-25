@@ -4,6 +4,7 @@ import path from 'path'
 import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 import type { SubBotManager } from '../subbots/manager.ts'
+import { webAccountStore, type WebAccount, type WebAccountRole } from './accounts.ts'
 
 const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web')
 const SESSION_COOKIE = 'tensura_subbots'
@@ -15,14 +16,16 @@ type WebOptions = {
   manager: SubBotManager
   host: string
   port: number
-  phone: string
-  password: string
+  ownerPhone?: string
+  ownerPassword?: string
 }
 
 type Session = {
   token: string
   csrf: string
+  accountId: string
   phone: string
+  role: WebAccountRole
   expiresAt: number
   ip: string
 }
@@ -49,12 +52,6 @@ function safeEqual(a: string, b: string): boolean {
 
 function randomToken(): string {
   return crypto.randomBytes(32).toString('base64url')
-}
-
-function normalizePhone(value: any): string {
-  const phone = String(value || '').replace(/\D/g, '')
-  if (!/^\d{7,15}$/.test(phone)) throw new Error('Teléfono no válido.')
-  return phone
 }
 
 function cookies(req: http.IncomingMessage): Record<string, string> {
@@ -173,16 +170,9 @@ export class SubBotWebServer {
   private cleanupTimer: NodeJS.Timeout | null = null
 
   constructor(options: WebOptions) {
-    const phone = normalizePhone(options.phone)
-    const password = String(options.password || '')
-    if (password.length < 4) {
-      throw new Error('SUBBOT_WEB_PASSWORD debe tener al menos 4 caracteres.')
-    }
     const requestedPort = Number(options.port)
     this.options = {
       ...options,
-      phone,
-      password,
       port:
         Number.isInteger(requestedPort) && requestedPort >= 0 && requestedPort <= 65535
           ? requestedPort
@@ -192,6 +182,22 @@ export class SubBotWebServer {
 
   async start(): Promise<{ host: string; port: number }> {
     if (this.server) throw new Error('El panel web ya está iniciado.')
+    await webAccountStore.init()
+    if (this.options.ownerPhone && this.options.ownerPassword) {
+      try {
+        const owner = await webAccountStore.ensureOwner(
+          this.options.ownerPhone,
+          this.options.ownerPassword
+        )
+        if (typeof (this.options.manager as any).adoptLegacyBots === 'function') {
+          const adopted = await (this.options.manager as any).adoptLegacyBots(owner.id, owner.phone)
+          if (adopted > 0) console.log(`[web] ${adopted} sub bot(s) asignados a la cuenta administradora.`)
+        }
+        console.log(`[web] Cuenta administradora lista: +${owner.phone}`)
+      } catch (error: any) {
+        console.log(`[web] No se pudo crear la cuenta administradora: ${error?.message || error}`)
+      }
+    }
     this.server = http.createServer((req, res) => {
       void this.route(req, res)
     })
@@ -296,6 +302,36 @@ export class SubBotWebServer {
     return session
   }
 
+  private sessionScope(session: Session): string | undefined {
+    return session.role === 'owner' ? undefined : session.accountId
+  }
+
+  private beginSession(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    account: WebAccount,
+    status = 200
+  ) {
+    const token = randomToken()
+    const csrf = randomToken()
+    const expiresAt = Date.now() + SESSION_HOURS * 60 * 60_000
+    this.sessions.set(token, {
+      token,
+      csrf,
+      accountId: account.id,
+      phone: account.phone,
+      role: account.role,
+      expiresAt,
+      ip: clientIp(req),
+    })
+    return json(
+      res,
+      status,
+      { ok: true, accountId: account.id, phone: account.phone, role: account.role, csrf, expiresAt },
+      { 'set-cookie': sessionCookie(req, token, expiresAt) }
+    )
+  }
+
   private async route(req: http.IncomingMessage, res: http.ServerResponse) {
     const url = new URL(req.url || '/', 'http://localhost')
     let pathname = '/'
@@ -321,7 +357,12 @@ export class SubBotWebServer {
       return text(res, 404, 'Not found')
     } catch (error: any) {
       if (!res.headersSent) {
-        json(res, 500, { ok: false, error: String(error?.message || error || 'Error inesperado.') })
+        const requested = Number(error?.statusCode || error?.status || 500)
+        const status = requested >= 400 && requested <= 599 ? requested : 500
+        json(res, status, {
+          ok: false,
+          error: String(error?.message || error || 'Error inesperado.'),
+        })
       } else {
         res.destroy()
       }
@@ -337,10 +378,30 @@ export class SubBotWebServer {
       return json(res, 200, {
         ok: true,
         authenticated: true,
+        accountId: session.accountId,
         phone: session.phone,
+        role: session.role,
         csrf: session.csrf,
         expiresAt: session.expiresAt,
       })
+    }
+
+    if (pathname === '/api/register' && method === 'POST') {
+      const body = await readJson(req, 8 * 1024)
+      let account: WebAccount
+      try {
+        account = await webAccountStore.register({
+          phone: body.phone,
+          password: body.password,
+        })
+      } catch (error: any) {
+        const requested = Number(error?.statusCode || 400)
+        return json(res, requested >= 400 && requested <= 599 ? requested : 400, {
+          ok: false,
+          error: String(error?.message || error || 'No se pudo crear la cuenta.'),
+        })
+      }
+      return this.beginSession(req, res, account, 201)
     }
 
     if (pathname === '/api/login' && method === 'POST') {
@@ -349,32 +410,13 @@ export class SubBotWebServer {
         return json(res, 429, { ok: false, error: 'Demasiados intentos. Espera unos minutos.' })
       }
       const body = await readJson(req, 8 * 1024)
-      let phone = ''
-      try {
-        phone = normalizePhone(body.phone)
-      } catch {}
-      const password = String(body.password || '')
-      if (!safeEqual(phone, this.options.phone) || !safeEqual(password, this.options.password)) {
+      const account = await webAccountStore.verify(body.phone, body.password)
+      if (!account) {
         this.recordFailure(ip)
         return json(res, 401, { ok: false, error: 'Teléfono o contraseña incorrectos.' })
       }
       this.attempts.delete(ip)
-      const token = randomToken()
-      const csrf = randomToken()
-      const expiresAt = Date.now() + SESSION_HOURS * 60 * 60_000
-      this.sessions.set(token, {
-        token,
-        csrf,
-        phone: this.options.phone,
-        expiresAt,
-        ip,
-      })
-      return json(
-        res,
-        200,
-        { ok: true, phone: this.options.phone, csrf, expiresAt },
-        { 'set-cookie': sessionCookie(req, token, expiresAt) }
-      )
+      return this.beginSession(req, res, account)
     }
 
     if (pathname === '/api/logout' && method === 'POST') {
@@ -385,9 +427,10 @@ export class SubBotWebServer {
 
     const session = this.requireSession(req, res)
     if (!session) return
+    const scope = this.sessionScope(session)
 
     if (pathname === '/api/overview' && method === 'GET') {
-      return json(res, 200, { ok: true, data: await this.options.manager.snapshot() })
+      return json(res, 200, { ok: true, data: await this.options.manager.snapshot(scope) })
     }
 
     if (pathname === '/api/pairings' && method === 'POST') {
@@ -397,19 +440,20 @@ export class SubBotWebServer {
         method: body.method === 'code' ? 'code' : 'qr',
         phone: body.phone,
         managerPhone: session.phone,
+        ownerAccountId: session.accountId,
       })
       return json(res, 201, { ok: true, data })
     }
 
     const pairingMatch = pathname.match(/^\/api\/pairings\/([a-zA-Z0-9_-]+)$/)
     if (pairingMatch && method === 'GET') {
-      const data = await this.options.manager.getPairing(pairingMatch[1])
+      const data = await this.options.manager.getPairing(pairingMatch[1], scope)
       if (!data) return json(res, 404, { ok: false, error: 'Vinculación no encontrada.' })
       return json(res, 200, { ok: true, data })
     }
     if (pairingMatch && method === 'DELETE') {
       if (!this.requireSession(req, res, true)) return
-      const removed = await this.options.manager.cancelPairing(pairingMatch[1])
+      const removed = await this.options.manager.cancelPairing(pairingMatch[1], scope)
       if (!removed) return json(res, 404, { ok: false, error: 'Vinculación no encontrada.' })
       return json(res, 200, { ok: true })
     }
@@ -418,16 +462,16 @@ export class SubBotWebServer {
     if (botAction && method === 'POST') {
       if (!this.requireSession(req, res, true)) return
       const botId = botAction[1]
-      if (botAction[2] === 'start') await this.options.manager.startBot(botId)
-      else await this.options.manager.stopBot(botId)
-      return json(res, 200, { ok: true, data: await this.options.manager.snapshot() })
+      if (botAction[2] === 'start') await this.options.manager.startBot(botId, scope)
+      else await this.options.manager.stopBot(botId, scope)
+      return json(res, 200, { ok: true, data: await this.options.manager.snapshot(scope) })
     }
 
     const botMatch = pathname.match(/^\/api\/bots\/(\d+)$/)
     if (botMatch && method === 'DELETE') {
       if (!this.requireSession(req, res, true)) return
-      await this.options.manager.removeBot(botMatch[1])
-      return json(res, 200, { ok: true, data: await this.options.manager.snapshot() })
+      await this.options.manager.removeBot(botMatch[1], scope)
+      return json(res, 200, { ok: true, data: await this.options.manager.snapshot(scope) })
     }
 
     return json(res, 404, { ok: false, error: 'Ruta no encontrada.' })

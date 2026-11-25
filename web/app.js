@@ -7,6 +7,7 @@ const state = {
   overview: null,
   pairing: null,
   view: "overview",
+  authMode: "login",
   sidebarOpen: false,
   refreshTimer: null
 };
@@ -212,7 +213,8 @@ function renderLogin() {
   stopPolling();
   state.overview = null;
   state.sidebarOpen = false;
-  document.title = "Tensura · Sub bots";
+  const registering = state.authMode === "register";
+  document.title = `Tensura · ${registering ? "Crear cuenta" : "Entrar"}`;
   const error = el("p", { class: "form-error", role: "alert" });
   const phone = el("input", {
     class: "input input--phone",
@@ -227,11 +229,13 @@ function renderLogin() {
     class: "input",
     type: "password",
     name: "password",
-    autocomplete: "current-password",
-    placeholder: "Tu contraseña",
+    autocomplete: registering ? "new-password" : "current-password",
+    minlength: registering ? 6 : null,
+    placeholder: registering ? "Mínimo 6 caracteres" : "Tu contraseña",
     required: true
   });
-  const submit = el("button", { class: "btn btn--primary btn--block", type: "submit" }, "Entrar al panel");
+  const submitLabel = registering ? "Crear cuenta" : "Entrar al panel";
+  const submit = el("button", { class: "btn btn--primary btn--block", type: "submit" }, submitLabel);
   const form = el(
     "form",
     {
@@ -240,20 +244,28 @@ function renderLogin() {
         event.preventDefault();
         error.textContent = "";
         submit.disabled = true;
-        submit.replaceChildren(el("span", { class: "spinner" }), "Entrando");
+        submit.replaceChildren(
+          el("span", { class: "spinner" }),
+          registering ? "Creando cuenta" : "Entrando"
+        );
         try {
-          const result = await api("/login", "POST", {
+          const result = await api(registering ? "/register" : "/login", "POST", {
             phone: phone.value,
             password: password.value
           });
-          state.session = { phone: result.phone, csrf: result.csrf };
+          state.session = {
+            phone: result.phone,
+            role: result.role,
+            csrf: result.csrf
+          };
+          state.authMode = "login";
           await refresh({ force: true });
           startPolling();
-          toast("Sesión iniciada.", "gold");
+          toast(registering ? "Cuenta creada." : "Sesión iniciada.", "gold");
         } catch (requestError) {
           error.textContent = requestError.message;
           submit.disabled = false;
-          submit.replaceChildren("Entrar al panel");
+          submit.replaceChildren(submitLabel);
         }
       }
     },
@@ -265,6 +277,19 @@ function renderLogin() {
   phone.id = "login-phone";
   password.id = "login-password";
 
+  const switchButton = el(
+    "button",
+    {
+      class: "auth-switch",
+      type: "button",
+      onclick: () => {
+        state.authMode = registering ? "login" : "register";
+        renderLogin();
+      }
+    },
+    registering ? "Entrar con mi cuenta" : "Crear una cuenta"
+  );
+
   const orbit = el(
     "div",
     { class: "orbit", "aria-hidden": "true" },
@@ -272,9 +297,9 @@ function renderLogin() {
     el("span", { class: "orbit-ring" }),
     el("span", { class: "orbit-ring" }),
     el("span", { class: "orbit-core" }, brandMark()),
-    el("span", { class: "orbit-chip" }, el("i"), "Sesión segura"),
-    el("span", { class: "orbit-chip" }, el("i"), "Control privado"),
-    el("span", { class: "orbit-chip" }, el("i"), "Sub bots activos")
+    el("span", { class: "orbit-chip" }, el("i"), "Registro abierto"),
+    el("span", { class: "orbit-chip" }, el("i"), "Tus sub bots"),
+    el("span", { class: "orbit-chip" }, el("i"), "Sesiones activas")
   );
 
   const visual = el(
@@ -290,20 +315,20 @@ function renderLogin() {
     el(
       "div",
       { class: "login-copy" },
-      el("p", { class: "eyebrow" }, "Panel privado"),
-      el("h1", { class: "display" }, "Conecta cuentas.", el("br"), el("em", {}, "Controla todo.")),
+      el("p", { class: "eyebrow" }, "Cuentas abiertas"),
+      el("h1", { class: "display" }, "Crea tu cuenta.", el("br"), el("em", {}, "Conecta tus bots.")),
       el(
         "p",
         { class: "lead" },
-        "Vincula números adicionales, revisa su estado y administra cada sesión desde un único lugar."
+        "Regístrate, vincula tus números y administra solo los sub bots de tu cuenta."
       )
     ),
     el(
       "div",
       { class: "feature-list" },
-      el("div", { class: "feature" }, el("strong", {}, "Vinculación rápida"), el("span", {}, "QR o código de 8 dígitos.")),
-      el("div", { class: "feature" }, el("strong", {}, "Sesiones aisladas"), el("span", {}, "Cada bot conserva sus credenciales.")),
-      el("div", { class: "feature" }, el("strong", {}, "Acceso restringido"), el("span", {}, "Solo el teléfono autorizado."))
+      el("div", { class: "feature" }, el("strong", {}, "Registro abierto"), el("span", {}, "Crea tu cuenta desde el panel.")),
+      el("div", { class: "feature" }, el("strong", {}, "Tus conexiones"), el("span", {}, "Cada cuenta gestiona sus sub bots.")),
+      el("div", { class: "feature" }, el("strong", {}, "Vinculación rápida"), el("span", {}, "QR o código de 8 dígitos."))
     )
   );
 
@@ -314,10 +339,22 @@ function renderLogin() {
       "div",
       { class: "login-card" },
       brandMark(),
-      el("h2", {}, "Entrar al panel"),
-      el("p", {}, "Usa el número y la contraseña configurados en el archivo .env."),
+      el("h2", {}, registering ? "Crear cuenta" : "Entrar al panel"),
+      el(
+        "p",
+        {},
+        registering
+          ? "Elige un teléfono y una contraseña para empezar."
+          : "Entra con el teléfono y la contraseña de tu cuenta."
+      ),
       form,
-      el("div", { class: "login-foot" }, icon("lock", 14), "Conexión privada · cookies HttpOnly")
+      el(
+        "div",
+        { class: "auth-switch-row" },
+        el("span", {}, registering ? "¿Ya tienes cuenta?" : "¿Aún no tienes cuenta?"),
+        switchButton
+      ),
+      el("div", { class: "login-foot" }, icon("lock", 14), "Cookies HttpOnly · sesión de 12 horas")
     )
   );
 
@@ -376,8 +413,8 @@ function renderDashboard() {
       el(
         "div",
         { class: "sidebar-note" },
-        el("strong", {}, "Sesión protegida"),
-        el("p", {}, "El acceso está limitado al número configurado en SUBBOT_WEB_PHONE.")
+        el("strong", {}, "Tu cuenta"),
+        el("p", {}, "Cada cuenta puede vincular y administrar únicamente sus propios sub bots.")
       ),
       el(
         "div",
@@ -386,8 +423,8 @@ function renderDashboard() {
         el(
           "div",
           { class: "sidebar-user-meta" },
-          el("strong", {}, state.session?.phone ? `+${state.session.phone}` : "Administrador"),
-          el("span", {}, "Control de sub bots")
+          el("strong", {}, state.session?.phone ? `+${state.session.phone}` : "Cuenta"),
+          el("span", {}, state.session?.role === "owner" ? "Administrador" : "Cuenta de usuario")
         ),
         el("button", { class: "icon-btn", type: "button", title: "Cerrar sesión", "aria-label": "Cerrar sesión", onclick: logout }, icon("logout", 16))
       )
@@ -505,7 +542,7 @@ function renderDashboard() {
       step("01", "Abre WhatsApp", "En el teléfono que será el nuevo sub bot."),
       step("02", "Dispositivos vinculados", "Entra en Ajustes y elige vincular un dispositivo."),
       step("03", "Elige QR o código", "Usa el método que prefieras desde el panel."),
-      step("04", "Confirma la sesión", "Tensura guarda las credenciales y deja el bot activo.")
+      step("04", "Confirma la sesión", "Tensura guarda las credenciales, sigue el canal y deja el bot activo.")
     ),
     el(
       "div",
@@ -1019,7 +1056,7 @@ async function boot() {
   try {
     const session = await api("/session");
     if (session.authenticated) {
-      state.session = { phone: session.phone, csrf: session.csrf };
+      state.session = { phone: session.phone, role: session.role, csrf: session.csrf };
       await refresh({ force: true });
       startPolling();
       return;

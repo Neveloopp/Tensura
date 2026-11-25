@@ -5,13 +5,15 @@ export default {
   usage: '',
   example: ['#bots'],
   isOwner: true,
-  async run({ m }: any) {
+  async run({ sock, m }: any) {
     const manager = (global as any).subbotManager
     if (!manager) {
       return m.reply('(>_<) El sistema de sub bots todavía no está disponible.')
     }
 
-    const data = await manager.snapshot()
+    const subbot = sock?.__subbot
+    const scope = subbot ? subbot.ownerAccountId || 'sin-cuenta' : undefined
+    const data = await manager.snapshot(scope)
     const connected = data.bots.filter((bot: any) => bot.connected)
     const lines = [
       '╭─〔 SUB BOTS 〕',

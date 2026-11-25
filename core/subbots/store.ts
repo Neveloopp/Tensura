@@ -7,6 +7,7 @@ export type SubBotRecord = {
   phone: string
   sessionId: string
   managerPhone: string
+  ownerAccountId: string
   enabled: boolean
   createdAt: string
   lastStartedAt: string | null
@@ -72,6 +73,7 @@ function normalizeRecord(input: any): SubBotRecord | null {
       phone,
       sessionId: normalizeSessionId(input?.sessionId),
       managerPhone,
+      ownerAccountId: text(input?.ownerAccountId, 80),
       enabled: input?.enabled !== false,
       createdAt: optionalDate(input?.createdAt) || now(),
       lastStartedAt: optionalDate(input?.lastStartedAt),
@@ -150,7 +152,11 @@ class SubBotStore {
     return this.data.bots.filter(item => item.enabled).map(clone)
   }
 
-  async create(input: Omit<SubBotRecord, 'createdAt' | 'lastStartedAt' | 'lastStoppedAt' | 'lastError'>): Promise<SubBotRecord> {
+  async create(
+    input: Omit<SubBotRecord, 'createdAt' | 'lastStartedAt' | 'lastStoppedAt' | 'lastError' | 'ownerAccountId'> & {
+      ownerAccountId?: string
+    }
+  ): Promise<SubBotRecord> {
     return this.mutate(data => {
       const record = normalizeRecord({ ...input, createdAt: now() })
       if (!record) throw new Error('Los datos del sub bot no son válidos.')
@@ -164,7 +170,13 @@ class SubBotStore {
 
   async replaceSession(
     botId: string,
-    patch: { sessionId: string; name?: string; phone?: string; managerPhone?: string }
+    patch: {
+      sessionId: string
+      name?: string
+      phone?: string
+      managerPhone?: string
+      ownerAccountId?: string
+    }
   ): Promise<SubBotRecord> {
     return this.mutate(data => {
       const id = normalizeSubBotId(botId)
@@ -174,6 +186,7 @@ class SubBotStore {
       if (patch.name) record.name = text(patch.name, 80)
       if (patch.phone) record.phone = String(patch.phone).replace(/\D/g, '').slice(0, 15)
       if (patch.managerPhone) record.managerPhone = String(patch.managerPhone).replace(/\D/g, '').slice(0, 15)
+      if (patch.ownerAccountId) record.ownerAccountId = text(patch.ownerAccountId, 80)
       record.enabled = true
       record.lastError = null
       return clone(record)
@@ -191,6 +204,21 @@ class SubBotStore {
         record.lastError = patch.lastError ? text(patch.lastError, 500) : null
       }
       return clone(record)
+    })
+  }
+
+  async adoptByManagerPhone(managerPhone: string, ownerAccountId: string): Promise<number> {
+    return this.mutate(data => {
+      const phone = String(managerPhone || '').replace(/\D/g, '')
+      const accountId = text(ownerAccountId, 80)
+      let adopted = 0
+      for (const record of data.bots) {
+        if (!record.ownerAccountId && record.managerPhone === phone && accountId) {
+          record.ownerAccountId = accountId
+          adopted += 1
+        }
+      }
+      return adopted
     })
   }
 

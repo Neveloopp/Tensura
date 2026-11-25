@@ -508,6 +508,29 @@ button:disabled {
   font-size: 12.5px;
 }
 
+.auth-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.auth-switch {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gold-bright);
+  font: inherit;
+  font-weight: 650;
+}
+
+.auth-switch:hover {
+  text-decoration: underline;
+}
+
 .login-foot {
   display: flex;
   align-items: center;

@@ -79,17 +79,17 @@ No compartas `.env` ni subas esa carpeta a GitHub.
 
 ### Panel de sub bots
 
-Para vincular cuentas adicionales desde el navegador:
+Para abrir el registro y la gestión de sub bots desde el navegador:
 
 ```env
 SUBBOT_WEB_ENABLED=1
-SUBBOT_WEB_HOST=127.0.0.1
+SUBBOT_WEB_HOST=0.0.0.0
 SUBBOT_WEB_PORT=3000
-SUBBOT_WEB_PHONE=50585117242
-SUBBOT_WEB_PASSWORD=una-clave-segura
+SUBBOT_WEB_ACCOUNTS_FILE=database/web-accounts.json
+SUBBOT_FOLLOW_CHANNEL=120363414217688890@newsletter
 ```
 
-Abre `http://127.0.0.1:3000` en el navegador del teléfono. Si necesitas entrar desde otro dispositivo de la red local, usa `SUBBOT_WEB_HOST=0.0.0.0` y la IP del teléfono; no expongas ese puerto a Internet sin HTTPS. La contraseña debe tener al menos 4 caracteres.
+Abre `http://IP-DEL-TELEFONO:3000` o `http://127.0.0.1:3000` desde el mismo teléfono. Cualquier persona puede crear una cuenta, entrar y gestionar únicamente sus propios sub bots. La cuenta administradora es opcional y se define con `SUBBOT_WEB_PHONE` y `SUBBOT_WEB_PASSWORD`.
 
 ## 5. Iniciar
 

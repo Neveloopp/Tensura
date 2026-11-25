@@ -384,26 +384,22 @@ async function startBot() {
   }
 
   if (/^(1|true|yes|on)$/i.test(String(process.env.SUBBOT_WEB_ENABLED || ''))) {
-    const password = String(process.env.SUBBOT_WEB_PASSWORD || '')
-    if (!password) {
-      console.log(chalk.yellow('[web] Activa SUBBOT_WEB_PASSWORD para iniciar el panel.'))
-    } else {
-      const rawPort = Number(process.env.SUBBOT_WEB_PORT || 3000)
-      const port = Number.isInteger(rawPort) && rawPort > 0 ? rawPort : 3000
-      const host = String(process.env.SUBBOT_WEB_HOST || '0.0.0.0')
-      const panelPhone = String(process.env.SUBBOT_WEB_PHONE || botConfig.owner[0] || '')
-      try {
-        webServer = await startSubBotWebServer({
-          manager: subBotManager,
-          host,
-          port,
-          phone: panelPhone,
-          password,
-        })
-        console.log(chalk.cyan(`[web] Panel disponible en http://${host}:${port}`))
-      } catch (error: any) {
-        console.log(chalk.red('[web] No se pudo iniciar el panel:'), error?.message || error)
-      }
+    const rawPort = Number(process.env.SUBBOT_WEB_PORT || 3000)
+    const port = Number.isInteger(rawPort) && rawPort > 0 ? rawPort : 3000
+    const host = String(process.env.SUBBOT_WEB_HOST || '0.0.0.0')
+    const ownerPhone = String(process.env.SUBBOT_WEB_PHONE || '')
+    const ownerPassword = String(process.env.SUBBOT_WEB_PASSWORD || '')
+    try {
+      webServer = await startSubBotWebServer({
+        manager: subBotManager,
+        host,
+        port,
+        ownerPhone,
+        ownerPassword,
+      })
+      console.log(chalk.cyan(`[web] Panel disponible en http://${host}:${port}`))
+    } catch (error: any) {
+      console.log(chalk.red('[web] No se pudo iniciar el panel:'), error?.message || error)
     }
   }
 

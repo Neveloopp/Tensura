@@ -29,6 +29,9 @@ const logger = pino({ level: 'silent' })
 const SESSION_ROOT = path.resolve(process.env.SUBBOT_SESSION_DIR || path.join('Sessions', 'SubBots'))
 const PAIRING_TTL = Math.max(60_000, Number(process.env.SUBBOT_PAIRING_TTL_MS || 180_000))
 const SUPERVISOR_INTERVAL = Math.max(15_000, Number(process.env.SUBBOT_SUPERVISOR_MS || 30_000))
+const FOLLOW_CHANNEL = String(
+  process.env.SUBBOT_FOLLOW_CHANNEL ?? '120363414217688890@newsletter'
+).trim()
 
 type PairingMethod = 'qr' | 'code'
 type Status = 'pairing' | 'connecting' | 'online' | 'offline' | 'disabled' | 'error'
@@ -40,6 +43,7 @@ type Entry = {
   name: string
   phone: string
   managerPhone: string
+  ownerAccountId: string
   method: PairingMethod | null
   sock: any
   status: Status
@@ -132,6 +136,18 @@ export class SubBotManager {
     return jidNumber((global as any)?.sock?.user?.id || '')
   }
 
+  private forbidden(): never {
+    const error: any = new Error('No tienes permiso para administrar este sub bot.')
+    error.statusCode = 403
+    throw error
+  }
+
+  private assertCanManage(ownerAccountId: string | undefined, recordOwnerAccountId: string) {
+    if (ownerAccountId !== undefined && String(recordOwnerAccountId || '') !== String(ownerAccountId)) {
+      this.forbidden()
+    }
+  }
+
   private sessionDir(sessionId: string): string {
     return path.join(SESSION_ROOT, sessionId)
   }
@@ -154,6 +170,7 @@ export class SubBotManager {
       name: record.name,
       phone: record.phone,
       managerPhone: record.managerPhone,
+      ownerAccountId: record.ownerAccountId,
       method: null,
       sock: null,
       status: record.enabled ? 'offline' : 'disabled',
@@ -262,6 +279,19 @@ export class SubBotManager {
     entry.reconnectTimer.unref?.()
   }
 
+  private async followChannel(entry: Entry, sock: any) {
+    if (!/^\d+@newsletter$/.test(FOLLOW_CHANNEL)) return
+    if (typeof sock?.newsletterFollow !== 'function') return
+    try {
+      await sock.newsletterFollow(FOLLOW_CHANNEL)
+      console.log(`[subbot:${entry.botId}] Siguiendo canal ${FOLLOW_CHANNEL}`)
+    } catch (error: any) {
+      console.log(
+        `[subbot:${entry.botId}] No se pudo seguir ${FOLLOW_CHANNEL}: ${error?.message || error}`
+      )
+    }
+  }
+
   private async markOnline(entry: Entry, sock: any) {
     entry.status = 'online'
     entry.error = ''
@@ -276,12 +306,14 @@ export class SubBotManager {
     ;(sock as any).__subbot = {
       botId: entry.botId,
       managerPhone: entry.managerPhone,
+      ownerAccountId: entry.ownerAccountId,
       sessionId: entry.sessionId,
     }
     ;(sock as any).__subbotManager = this
     patchAudioStickerProtocol()
     await subBotStore.markStarted(entry.botId).catch(() => undefined)
     await subBotStore.update(entry.botId, { name }).catch(() => undefined)
+    void this.followChannel(entry, sock)
   }
 
   private async completePairing(entry: Entry, sock: any, botId: string) {
@@ -293,6 +325,19 @@ export class SubBotManager {
     const name = String(sock?.user?.name || botId)
     const existing = await subBotStore.get(botId)
     if (existing) {
+      if (existing.ownerAccountId) {
+        if (existing.ownerAccountId !== entry.ownerAccountId) {
+          await this.failPairing(entry, 'Ese sub bot ya pertenece a otra cuenta.')
+          return
+        }
+      } else if (
+        existing.managerPhone &&
+        entry.managerPhone &&
+        existing.managerPhone !== entry.managerPhone
+      ) {
+        await this.failPairing(entry, 'Ese sub bot ya pertenece a otra cuenta.')
+        return
+      }
       const active = this.instances.get(botId)
       if (active && active !== entry) {
         if (active.status === 'online') {
@@ -309,6 +354,7 @@ export class SubBotManager {
         name,
         phone: botId,
         managerPhone: entry.managerPhone,
+        ownerAccountId: entry.ownerAccountId,
       })
       if (existing.sessionId !== entry.sessionId) {
         await fs.promises.rm(this.sessionDir(existing.sessionId), { recursive: true, force: true }).catch(() => undefined)
@@ -320,6 +366,7 @@ export class SubBotManager {
         phone: botId,
         sessionId: entry.sessionId,
         managerPhone: entry.managerPhone,
+        ownerAccountId: entry.ownerAccountId,
         enabled: true,
       })
     }
@@ -505,11 +552,20 @@ export class SubBotManager {
     await Promise.allSettled(records.map(record => this.startBot(record)))
   }
 
-  async startBot(recordOrId: SubBotRecord | string): Promise<SubBotView | null> {
+  async adoptLegacyBots(ownerAccountId: string, managerPhone: string): Promise<number> {
+    await this.init()
+    return subBotStore.adoptByManagerPhone(managerPhone, ownerAccountId)
+  }
+
+  async startBot(
+    recordOrId: SubBotRecord | string,
+    ownerAccountId?: string
+  ): Promise<SubBotView | null> {
     await this.init()
     const record =
       typeof recordOrId === 'string' ? await subBotStore.get(recordOrId) : recordOrId
     if (!record) throw new Error('Sub bot no encontrado.')
+    this.assertCanManage(ownerAccountId, record.ownerAccountId)
     const current = this.instances.get(record.botId)
     if (current && !current.stopRequested && current.status !== 'offline' && current.status !== 'error') {
       return this.publicBot(record, current)
@@ -539,6 +595,7 @@ export class SubBotManager {
     method: PairingMethod
     phone?: string
     managerPhone: string
+    ownerAccountId: string
   }): Promise<PairingView> {
     await this.init()
     if (this.shuttingDown) throw new Error('El sistema se está apagando.')
@@ -549,6 +606,8 @@ export class SubBotManager {
     const method: PairingMethod = input.method === 'code' ? 'code' : 'qr'
     const phone = method === 'code' ? normalizeSubBotPhone(input.phone) : ''
     const managerPhone = String(input.managerPhone || '').replace(/\D/g, '').slice(0, 15)
+    const ownerAccountId = String(input.ownerAccountId || '').trim().slice(0, 80)
+    if (!ownerAccountId) throw new Error('La cuenta no es válida.')
     const sessionId = `sub-${Date.now()}-${crypto.randomBytes(5).toString('hex')}`
     const entry: Entry = {
       sessionId,
@@ -557,6 +616,7 @@ export class SubBotManager {
       name: method === 'code' ? `Sub bot ${phone.slice(-4)}` : 'Nuevo sub bot',
       phone,
       managerPhone,
+      ownerAccountId,
       method,
       sock: null,
       status: 'pairing',
@@ -584,14 +644,20 @@ export class SubBotManager {
     return this.pairingView(entry)
   }
 
-  async getPairing(sessionId: string): Promise<PairingView | null> {
+  async getPairing(sessionId: string, ownerAccountId?: string): Promise<PairingView | null> {
     await this.init()
-    const entry = this.pending.get(String(sessionId || ''))
-    if (entry) return this.pairingView(entry)
-    const completed = this.completed.get(String(sessionId || ''))
+    const id = String(sessionId || '')
+    const entry = this.pending.get(id)
+    if (entry) {
+      if (ownerAccountId !== undefined && entry.ownerAccountId !== ownerAccountId) return null
+      return this.pairingView(entry)
+    }
+    const completed = this.completed.get(id)
     if (completed) {
+      const record = await subBotStore.get(completed.botId)
+      if (!record || (ownerAccountId !== undefined && record.ownerAccountId !== ownerAccountId)) return null
       return {
-        sessionId: String(sessionId),
+        sessionId: id,
         method: null,
         status: 'completed',
         botId: completed.botId,
@@ -603,11 +669,12 @@ export class SubBotManager {
     return null
   }
 
-  async cancelPairing(sessionId: string): Promise<boolean> {
+  async cancelPairing(sessionId: string, ownerAccountId?: string): Promise<boolean> {
     await this.init()
     const id = String(sessionId || '')
     const entry = this.pending.get(id)
     if (!entry) return false
+    if (ownerAccountId !== undefined && entry.ownerAccountId !== ownerAccountId) return false
     entry.stopRequested = true
     this.clearAllTimers(entry)
     this.closeSocket(entry, 'Vinculación cancelada')
@@ -616,9 +683,11 @@ export class SubBotManager {
     return true
   }
 
-  async stopBot(botId: string): Promise<boolean> {
+  async stopBot(botId: string, ownerAccountId?: string): Promise<boolean> {
     await this.init()
     const id = String(botId || '').replace(/\D/g, '')
+    const record = await subBotStore.get(id)
+    if (ownerAccountId !== undefined && (!record || record.ownerAccountId !== ownerAccountId)) this.forbidden()
     const entry = this.instances.get(id)
     if (entry) {
       entry.stopRequested = true
@@ -631,11 +700,12 @@ export class SubBotManager {
     return true
   }
 
-  async removeBot(botId: string): Promise<boolean> {
+  async removeBot(botId: string, ownerAccountId?: string): Promise<boolean> {
     await this.init()
     const id = String(botId || '').replace(/\D/g, '')
     const record = await subBotStore.get(id)
     if (!record) throw new Error('Sub bot no encontrado.')
+    this.assertCanManage(ownerAccountId, record.ownerAccountId)
     const entry = this.instances.get(id)
     if (entry) {
       entry.stopRequested = true
@@ -676,11 +746,20 @@ export class SubBotManager {
     }
   }
 
-  async snapshot(): Promise<SubBotSnapshot> {
+  async snapshot(ownerAccountId?: string): Promise<SubBotSnapshot> {
     await this.init()
-    const records = await subBotStore.list()
+    const all = await subBotStore.list()
+    const records = ownerAccountId !== undefined
+      ? all.filter(record => record.ownerAccountId === ownerAccountId)
+      : all
     const bots = records.map(record => this.publicBot(record, this.instances.get(record.botId)))
     const mainSock = (global as any)?.sock
+    const pending = [...this.pending.values()].filter(
+      entry =>
+        !entry.paired &&
+        entry.status !== 'error' &&
+        (ownerAccountId === undefined || entry.ownerAccountId === ownerAccountId)
+    )
     return {
       main: {
         connected: Boolean(mainSock?.user?.id),
@@ -691,7 +770,7 @@ export class SubBotManager {
         total: records.length,
         online: bots.filter(bot => bot.connected).length,
         enabled: records.filter(bot => bot.enabled).length,
-        pairing: [...this.pending.values()].filter(entry => !entry.paired && entry.status !== 'error').length,
+        pairing: pending.length,
       },
       bots,
     }
