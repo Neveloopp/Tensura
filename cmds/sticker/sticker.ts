@@ -23,6 +23,10 @@ export default {
       return m.reply('(>_<) Envía una imagen o video con el comando, o responde a uno.')
     }
 
+    const replyTarget = quoted
+      ? { key: quoted.key, message: quoted.message, participant: quoted.key?.participant }
+      : { key: m.raw?.key || m.key, message: m.message, participant: m.key?.participant }
+
     const message = quoted?.msg || m.msg
     const mimetype = String(message?.mimetype || '')
     const isVideo = quoted
@@ -74,6 +78,7 @@ export default {
           maxSeconds: botConfig.sticker.audioMaxSeconds,
           metadata,
           duration,
+          quoted: replyTarget,
         })
 
         return
@@ -84,7 +89,7 @@ export default {
         metadata
       )
 
-      return m.send({ sticker })
+      return m.send({ sticker }, { quoted: replyTarget })
     } catch (error: any) {
       return m.reply(`(x_x) No pude crear el sticker: ${error?.message || 'error desconocido'}`)
     } finally {

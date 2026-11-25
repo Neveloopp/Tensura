@@ -4,7 +4,7 @@
  * audioStickerMessage con la pista opus dentro del sticker.
  */
 import crypto from 'crypto'
-import { proto, prepareWAMessageMedia } from '@whiskeysockets/baileys'
+import { jidNormalizedUser, proto, prepareWAMessageMedia } from '@whiskeysockets/baileys'
 import { convertVideoForAudioSticker, extractAudioOpus, type StickerMetadata } from './exif.ts'
 
 let patched = false
@@ -101,6 +101,7 @@ export async function sendAudioSticker({
   maxSeconds = 25,
   metadata = {},
   duration,
+  quoted,
 }: {
   sock: any
   chat: string
@@ -110,6 +111,7 @@ export async function sendAudioSticker({
   maxSeconds?: number
   metadata?: StickerMetadata
   duration?: number
+  quoted?: any
 }) {
   if (!sock?.relayMessage || !sock?.waUploadToServer) {
     throw new Error('Faltan funciones de Baileys para enviar el sticker con audio.')
@@ -157,6 +159,24 @@ export async function sendAudioSticker({
 
   prepared.stickerMessage.isAnimated = true
   prepared.stickerMessage.audioMessage = audioMessage
+
+  if (quoted?.key?.id && quoted?.message) {
+    const participant = quoted.key.fromMe
+      ? jidNormalizedUser(sock.user?.id || '')
+      : jidNormalizedUser(
+          quoted.participant || quoted.key.participant || quoted.key.remoteJid || ''
+        )
+
+    prepared.stickerMessage.contextInfo = {
+      ...(prepared.stickerMessage.contextInfo || {}),
+      stanzaId: quoted.key.id,
+      quotedMessage: proto.Message.create(quoted.message),
+      ...(participant ? { participant } : {}),
+      ...(quoted.key.remoteJid && quoted.key.remoteJid !== chat
+        ? { remoteJid: quoted.key.remoteJid }
+        : {}),
+    }
+  }
 
   const payload: any = {
     ...prepared,
