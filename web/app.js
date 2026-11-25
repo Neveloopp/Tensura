@@ -65,6 +65,7 @@ function el(tag, attrs = {}, ...children) {
     else if (key === "onclick") node.addEventListener("click", value);
     else if (key === "onsubmit") node.addEventListener("submit", value);
     else if (key === "oninput") node.addEventListener("input", value);
+    else if (key === "onkeydown") node.addEventListener("keydown", value);
     else if (key === "value") node.value = value;
     else if (["disabled", "checked", "selected"].includes(key)) node[key] = Boolean(value);
     else if (key === "autocomplete" || key === "autocapitalize" || key === "inputmode" || key === "spellcheck" || key === "minlength" || key === "maxlength" || key === "placeholder" || key === "type" || key === "name" || key === "role" || key === "title" || key === "href" || key === "src" || key === "alt" || key === "aria-label") {
@@ -962,32 +963,43 @@ function renderPairingActive(pairing) {
         { class: "qr-frame" },
         el("div", { class: "pairing-status" }, el("span", { class: "spinner" }), "Generando QR")
       );
+  const copyCode = async () => {
+    const copied = await copyText(String(pairing.code || "").replace(/\s+/g, ""))
+    toast(copied ? "Código copiado." : "No se pudo copiar el código.", copied ? "gold" : "bad")
+  };
   const codeContent = el(
     "div",
     { class: "code-wrap" },
     el(
       "div",
-      { class: "code-box" },
+      {
+        class: "code-box",
+        role: pairing.code ? "button" : null,
+        tabindex: pairing.code ? "0" : null,
+        title: pairing.code ? "Toca para copiar el código" : null,
+        onclick: pairing.code ? copyCode : null,
+        onkeydown: pairing.code
+          ? event => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                void copyCode();
+              }
+            }
+          : null
+      },
       pairing.code ? formatCode(pairing.code) : el("span", { class: "spinner" })
     ),
-    pairing.code
-      ? el(
-          "button",
-          {
-            class: "btn btn--small code-copy",
-            type: "button",
-            onclick: async () => {
-              const copied = await copyText(String(pairing.code || "").replace(/\s+/g, ""))
-              toast(
-                copied ? "Código copiado." : "No se pudo copiar el código.",
-                copied ? "gold" : "bad"
-              )
-            }
-          },
-          icon("copy", 14),
-          "Copiar código"
-        )
-      : null
+    el(
+      "button",
+      {
+        class: "btn btn--small code-copy",
+        type: "button",
+        disabled: !pairing.code,
+        onclick: copyCode
+      },
+      icon("copy", 14),
+      pairing.code ? "Copiar código" : "Generando código"
+    )
   );
 
   ui.content.replaceChildren(

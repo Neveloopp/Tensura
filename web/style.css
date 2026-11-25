@@ -1511,11 +1511,27 @@ img {
   opacity: 0.32;
 }
 
+.code-box[role="button"] {
+  cursor: pointer;
+}
+
+.code-box[role="button"]:hover,
+.code-box[role="button"]:focus-visible {
+  border-color: var(--accent);
+  background: #fff;
+  outline: none;
+}
+
 .code-wrap {
   display: grid;
   width: 100%;
   gap: 10px;
   justify-items: center;
+}
+
+.code-wrap .btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .code-copy {
