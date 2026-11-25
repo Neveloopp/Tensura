@@ -55,6 +55,7 @@ type Entry = {
   reconnectAttempts: number
   reconnectTimer: NodeJS.Timeout | null
   codeTimer: NodeJS.Timeout | null
+  codeRequested: boolean
   pairingTimer: NodeJS.Timeout | null
   startedAt: string | null
 }
@@ -182,6 +183,7 @@ export class SubBotManager {
       reconnectAttempts: 0,
       reconnectTimer: null,
       codeTimer: null,
+      codeRequested: false,
       pairingTimer: null,
       startedAt: null,
     }
@@ -266,10 +268,10 @@ export class SubBotManager {
     }
   }
 
-  private scheduleReconnect(entry: Entry) {
+  private scheduleReconnect(entry: Entry, delayOverride?: number) {
     if (this.shuttingDown || entry.stopRequested || !entry.botId || entry.reconnectTimer) return
     entry.reconnectAttempts += 1
-    const delay = Math.min(5000 * entry.reconnectAttempts, 60_000)
+    const delay = delayOverride ?? Math.min(5000 * entry.reconnectAttempts, 60_000)
     entry.reconnectTimer = setTimeout(() => {
       entry.reconnectTimer = null
       void this.connect(entry).catch(error => {
@@ -384,7 +386,9 @@ export class SubBotManager {
     this.pending.delete(entry.sessionId)
     this.instances.set(botId, entry)
     this.completed.set(entry.sessionId, { botId, at: Date.now() })
-    await this.markOnline(entry, sock)
+    if (entry.sock === sock && !entry.stopRequested) {
+      await this.markOnline(entry, sock)
+    }
   }
 
   private async handleOpen(entry: Entry, sock: any) {
@@ -427,12 +431,22 @@ export class SubBotManager {
     const message = statusFromReason(reason)
 
     if (!entry.paired) {
+      if (reason === DisconnectReason.restartRequired) {
+        this.restartPairing(entry)
+        return
+      }
       void this.failPairing(entry, message)
       return
     }
 
     if (fatalReason(reason)) {
       void this.fatal(entry, message, true)
+      return
+    }
+
+    if (reason === DisconnectReason.restartRequired) {
+      entry.error = ''
+      this.scheduleReconnect(entry, Math.min(1500 * (entry.reconnectAttempts + 1), 10_000))
       return
     }
 
@@ -479,8 +493,27 @@ export class SubBotManager {
     })
   }
 
+  private restartPairing(entry: Entry) {
+    if (this.shuttingDown || entry.stopRequested) return
+    entry.reconnectAttempts += 1
+    if (entry.reconnectAttempts > 5) {
+      void this.failPairing(entry, 'WhatsApp no completó la vinculación. Genera un QR o código nuevo.')
+      return
+    }
+    entry.status = 'connecting'
+    entry.error = ''
+    const delay = Math.min(1200 * entry.reconnectAttempts, 5000)
+    entry.reconnectTimer = setTimeout(() => {
+      entry.reconnectTimer = null
+      void this.connect(entry).catch(error => {
+        void this.failPairing(entry, error?.message || 'No se pudo reintentar la vinculación.')
+      })
+    }, delay)
+    entry.reconnectTimer.unref?.()
+  }
+
   private scheduleCode(entry: Entry, sock: any, registered: boolean) {
-    if (registered || entry.method !== 'code' || !entry.phone || entry.paired) return
+    if (registered || entry.method !== 'code' || !entry.phone || entry.paired || entry.codeRequested) return
     entry.codeTimer = setTimeout(async () => {
       if (entry.sock !== sock || entry.stopRequested || entry.paired) return
       let lastError: any = null
@@ -490,6 +523,7 @@ export class SubBotManager {
           const code = await sock.requestPairingCode(entry.phone)
           if (entry.sock !== sock) return
           entry.code = String(code || '')
+          entry.codeRequested = true
           entry.error = ''
           entry.status = 'pairing'
           return
@@ -628,6 +662,7 @@ export class SubBotManager {
       reconnectAttempts: 0,
       reconnectTimer: null,
       codeTimer: null,
+      codeRequested: false,
       pairingTimer: null,
       startedAt: null,
     }

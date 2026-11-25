@@ -290,16 +290,34 @@ function renderLogin() {
     registering ? "Entrar con mi cuenta" : "Crear una cuenta"
   );
 
-  const orbit = el(
+  const preview = el(
     "div",
-    { class: "orbit", "aria-hidden": "true" },
-    el("span", { class: "orbit-ring" }),
-    el("span", { class: "orbit-ring" }),
-    el("span", { class: "orbit-ring" }),
-    el("span", { class: "orbit-core" }, brandMark()),
-    el("span", { class: "orbit-chip" }, el("i"), "Registro abierto"),
-    el("span", { class: "orbit-chip" }, el("i"), "Tus sub bots"),
-    el("span", { class: "orbit-chip" }, el("i"), "Sesiones activas")
+    { class: "login-preview", "aria-hidden": "true" },
+    el(
+      "div",
+      { class: "preview-top" },
+      el("span", { class: "preview-dot" }),
+      el("span", {}, "Panel de sub bots"),
+      el("span", { class: "preview-badge" }, "En línea")
+    ),
+    el(
+      "div",
+      { class: "preview-row" },
+      el("span", { class: "preview-avatar" }, "WA"),
+      el(
+        "div",
+        { class: "preview-meta" },
+        el("strong", {}, "WhatsApp conectado"),
+        el("span", {}, "Sesión activa · hace un momento")
+      ),
+      el("span", { class: "preview-status" })
+    ),
+    el(
+      "div",
+      { class: "preview-foot" },
+      el("span", {}, "2 de 4 sesiones activas"),
+      el("span", { class: "preview-meter" }, el("i"))
+    )
   );
 
   const visual = el(
@@ -311,24 +329,28 @@ function renderLogin() {
       brandMark(),
       el("div", {}, el("span", {}, "Tensura"), el("small", {}, "Sub bot control"))
     ),
-    orbit,
     el(
       "div",
-      { class: "login-copy" },
-      el("p", { class: "eyebrow" }, "Cuentas abiertas"),
-      el("h1", { class: "display" }, "Crea tu cuenta.", el("br"), el("em", {}, "Conecta tus bots.")),
+      { class: "login-stage" },
       el(
-        "p",
-        { class: "lead" },
-        "Regístrate, vincula tus números y administra solo los sub bots de tu cuenta."
-      )
+        "div",
+        { class: "login-copy" },
+        el("p", { class: "eyebrow" }, "Tensura para WhatsApp"),
+        el("h1", { class: "display" }, "Tus números,", el("br"), el("em", {}, "en un solo lugar.")),
+        el(
+          "p",
+          { class: "lead" },
+          "Crea tu cuenta, vincula WhatsApp por QR o código y controla cada sesión desde un panel claro."
+        )
+      ),
+      preview
     ),
     el(
       "div",
       { class: "feature-list" },
-      el("div", { class: "feature" }, el("strong", {}, "Registro abierto"), el("span", {}, "Crea tu cuenta desde el panel.")),
-      el("div", { class: "feature" }, el("strong", {}, "Tus conexiones"), el("span", {}, "Cada cuenta gestiona sus sub bots.")),
-      el("div", { class: "feature" }, el("strong", {}, "Vinculación rápida"), el("span", {}, "QR o código de 8 dígitos."))
+      el("div", { class: "feature" }, el("strong", {}, "Registro abierto"), el("span", {}, "Crea tu cuenta sin invitaciones.")),
+      el("div", { class: "feature" }, el("strong", {}, "Sesiones separadas"), el("span", {}, "Cada cuenta ve solo sus sub bots.")),
+      el("div", { class: "feature" }, el("strong", {}, "QR o código"), el("span", {}, "Vincula una cuenta en segundos."))
     )
   );
 
@@ -338,11 +360,11 @@ function renderLogin() {
     el(
       "div",
       { class: "login-card" },
-      brandMark(),
+      el("p", { class: "form-kicker" }, registering ? "Nueva cuenta" : "Acceso"),
       el("h2", {}, registering ? "Crear cuenta" : "Entrar al panel"),
       el(
         "p",
-        {},
+        { class: "login-card-sub" },
         registering
           ? "Elige un teléfono y una contraseña para empezar."
           : "Entra con el teléfono y la contraseña de tu cuenta."
@@ -414,7 +436,7 @@ function renderDashboard() {
         "div",
         { class: "sidebar-note" },
         el("strong", {}, "Tu cuenta"),
-        el("p", {}, "Cada cuenta puede vincular y administrar únicamente sus propios sub bots.")
+        el("p", {}, "Solo ves y controlas los sub bots vinculados desde esta cuenta.")
       ),
       el(
         "div",
@@ -461,7 +483,7 @@ function renderDashboard() {
     el("div", { class: "topbar-left" }, menuButton, el("span", { class: "topbar-title" }, "Tensura / Sub bots")),
     el(
       "div",
-      { class: "live" },
+      { class: `live ${main.connected ? "" : "live--off"}`.trim() },
       el("span", { class: "live-dot" }),
       main.connected ? "Bot principal conectado" : "Bot principal sin sesión"
     )
@@ -473,9 +495,9 @@ function renderDashboard() {
     el(
       "div",
       {},
-      el("p", { class: "eyebrow" }, "Centro de control"),
+      el("p", { class: "eyebrow" }, "Sesiones de WhatsApp"),
       el("h1", { class: "page-title" }, "Sub bots"),
-      el("p", { class: "page-sub" }, "Vincula cuentas adicionales de WhatsApp y administra sus sesiones sin salir del panel.")
+      el("p", { class: "page-sub" }, "Vincula números, revisa el estado y administra cada cuenta desde un solo panel.")
     ),
     el(
       "div",
