@@ -3,63 +3,19 @@
  * `stch --config` permite configurar el destino y el estilo.
  */
 import fs from 'fs'
-import botConfig from '../../settings.ts'
 import { sendAudioSticker } from '../../core/audioSticker.ts'
+import { channelAccessError, getChannelConfig, parseDestination } from '../../core/channel.ts'
 import { probeDuration } from '../../core/exif.ts'
 import { updateSettings } from '../../core/system/database.ts'
 import { normalizeJid, removeFile, tempFile } from '../../core/utils.ts'
 
-type StchConfig = {
-  enabled: boolean
-  channel: string
-  group: string
-  pack: string
-  author: string
-  maxSeconds: number
-}
-
-function defaults(settings: any): StchConfig {
-  return {
-    enabled: true,
-    channel: parseDestination(settings?.idcanal || botConfig.channel.id || '', '@newsletter'),
-    group: '',
-    pack: botConfig.sticker.pack,
-    author: botConfig.sticker.author,
-    maxSeconds: botConfig.sticker.audioMaxSeconds,
-  }
-}
-
-function getConfig(settings: any): StchConfig {
-  const base = defaults(settings)
-  const saved = settings?.stch && typeof settings.stch === 'object' ? settings.stch : {}
-  const maxSeconds = Number(saved.maxSeconds ?? base.maxSeconds)
-
-  return {
-    enabled: saved.enabled !== false,
-    channel: String(saved.channel ?? base.channel ?? '').trim(),
-    group: String(saved.group ?? '').trim(),
-    pack: String(saved.pack || base.pack),
-    author: String(saved.author || base.author),
-    maxSeconds: Math.max(1, Math.min(60, Number.isFinite(maxSeconds) ? maxSeconds : base.maxSeconds)),
-  }
-}
-
-function parseDestination(value: string, fallbackServer: string) {
-  const raw = String(value || '').trim()
-  const invite = raw.match(/whatsapp\.com\/channel\/([A-Za-z0-9]+)/i)
-  if (invite) return `${invite[1]}@newsletter`
-  if (/@(newsletter|g\.us|s\.whatsapp\.net)$/i.test(raw)) return raw
-  const digits = raw.replace(/\D/g, '')
-  return digits ? `${digits}${fallbackServer}` : ''
-}
-
-function helpText(prefix: string, config: StchConfig) {
+function helpText(prefix: string, config: ReturnType<typeof getChannelConfig>) {
   const p = prefix || '#'
   return [
     '╭─〔 STCH · CONFIGURACIÓN 〕',
     `│ ➛ Estado: ${config.enabled ? 'activo' : 'desactivado'}`,
     `│ ➛ Canal: ${config.channel || 'sin configurar'}`,
-    `│ ➛ Grupo permitido: ${config.group || 'cualquiera'}`,
+    `│ ➛ Grupo permitido: ${config.group || 'sin configurar (solo Creador)'}`,
     `│ ➛ Pack: ${config.pack}`,
     `│ ➛ Autor: ${config.author}`,
     `│ ➛ Máximo: ${config.maxSeconds}s`,
@@ -92,18 +48,18 @@ export default {
   category: 'sticker',
   description: 'Crea un sticker con audio y lo publica en el canal configurado.',
   usage: '[--config]',
-  isOwner: true,
   example: [
     '#stch (respondiendo a un video)',
     '#stch --config',
     '#stch --config channel 120363...@newsletter',
   ],
-  async run({ sock, m, args, prefix, settings }: any) {
+  async run({ sock, m, args, prefix, settings, isOwner }: any) {
     const botId = normalizeJid(settings?.id || sock?.user?.id || '')
-    const config = getConfig(settings)
+    const config = getChannelConfig(settings)
     const action = String(args[0] || '').toLowerCase()
 
     if (action === '--config' || action === '-c' || action === 'config') {
+      if (!isOwner) return m.reply('(>_<) Solo mi Creador puede configurar STCH.')
       const key = String(args[1] || '').toLowerCase()
       const value = args.slice(2).join(' ').trim()
 
@@ -134,7 +90,7 @@ export default {
       if (['group', 'grupo'].includes(key)) {
         if (!value || ['off', 'none', 'ninguno', 'clear'].includes(value.toLowerCase())) {
           updateSettings(botId, 'stch', { ...config, group: '' })
-          return m.reply('(＾▽＾) STCH disponible en cualquier grupo.')
+          return m.reply('(＾▽＾) Grupo eliminado. Solo el Creador podrá usar STCH hasta configurar uno.')
         }
         const group = parseDestination(value, '@g.us')
         if (!group) return m.reply('(>_<) Indica el JID del grupo.')
@@ -170,12 +126,11 @@ export default {
       return m.reply('(>_<) STCH está desactivado. Usa stch --config on para activarlo.')
     }
 
+    const accessError = channelAccessError(m, config, Boolean(isOwner), 'STCH')
+    if (accessError) return m.reply(accessError)
+
     if (!config.channel) {
       return m.reply('(>_<) Configura el canal primero: stch --config channel <jid>.')
-    }
-
-    if (config.group && m.chat !== config.group) {
-      return m.reply('(>_<) STCH solo está permitido en el grupo configurado.')
     }
 
     const direct = m.mtype === 'videoMessage' ? m : null

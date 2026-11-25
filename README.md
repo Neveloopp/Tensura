@@ -14,7 +14,7 @@ Versión recortada de **Viko** enfocada en tres cosas: **grupos**, **descargas**
 - Conexión por **código QR** o **código de 8 dígitos**.
 - Comandos con prefijos configurables y recarga en caliente al editar archivos de `cmds/`.
 - `sync` actualiza desde GitHub (git o ZIP), recarga comandos y reinicia el proceso si cambia el núcleo.
-- `stch` publica stickers de audio en el canal y se configura con `stch --config`.
+- `stch` publica stickers de audio en el canal y `texch` envía texto; ambos usan el canal y el grupo configurados con `stch --config`.
 - Bienvenidas, despedidas, reglas, antienlaces, advertencias, expulsiones, administradores, invitaciones, solicitudes, cierre/apertura y horario automático.
 - Descargas de YouTube, TikTok, Facebook, Instagram, MediaFire, Pinterest, Threads y APK.
 - Stickers de imagen/video y stickers con audio (`#s -aud`) con metadatos por usuario.
@@ -191,7 +191,8 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `sticker` / `s` — imagen o video a sticker. Responde a un video con `#s -aud` para incluir el audio (máximo 25 s).
 - `toimg` — sticker a PNG.
 - `setmeta` — cambia pack/autor (`#setmeta Mi Pack | Mi Nombre`); `delmeta` restaura.
-- `stch` — responde a un video y publica un sticker con audio en el canal. Se configura con `stch --config` (`channel`, `group`, `pack`, `author`, `max`, `on/off`, `reset`).
+- `stch` — responde a un video y publica un sticker con audio en el canal. Lo pueden usar todos los miembros del grupo configurado; la configuración sigue siendo solo del Creador (`stch --config`: `channel`, `group`, `pack`, `author`, `max`, `on/off`, `reset`).
+- `texch` — envía un mensaje de texto al mismo canal (`#texch Hola` o responde a un texto). También lo pueden usar los miembros del grupo configurado.
 
 ### Sistema
 - `sync` — `status`, `pull`, `push [mensaje]`, `reload` o `restart`. Sin git descarga el ZIP del repo y copia solo los archivos cambiados.
