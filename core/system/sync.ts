@@ -27,6 +27,11 @@ const SKIP_DIRS = new Set([
 let watcherStarted = false
 let restarting = false
 let restartTimer: NodeJS.Timeout | null = null
+let beforeRestart: (() => Promise<void> | void) | null = null
+
+export function setBeforeRestart(handler: () => Promise<void> | void) {
+  beforeRestart = handler
+}
 
 function findGitRoot(): string | null {
   const candidates = [PROJECT_ROOT, process.cwd()]
@@ -306,12 +311,24 @@ export function requestRestart(reason = 'cambios detectados'): boolean {
     process.env.RENDER ||
     process.env.FLY_APP_NAME
 
+  const stop = async () => {
+    try {
+      await beforeRestart?.()
+    } catch (error: any) {
+      console.error('[sync] error al preparar el reinicio:', error?.message || error)
+    }
+  }
+
   if (supervised) {
-    setTimeout(() => process.exit(0), 1200)
+    setTimeout(async () => {
+      await stop()
+      process.exit(0)
+    }, 1200)
     return true
   }
 
-  restartTimer = setTimeout(() => {
+  restartTimer = setTimeout(async () => {
+    await stop()
     const args = [...process.execArgv, ...process.argv.slice(1)]
     const child = spawn(process.execPath, args, {
       cwd: PROJECT_ROOT,

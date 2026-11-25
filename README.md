@@ -142,6 +142,7 @@ Edita `settings.ts` o crea `.env`:
 | `SUBBOT_WEB_HOST` | Interfaz del panel | `0.0.0.0` |
 | `SUBBOT_WEB_PORT` | Puerto del panel | `3000` |
 | `SUBBOT_WEB_ACCOUNTS_FILE` | JSON de cuentas web | `database/web-accounts.json` |
+| `SUBBOT_WEB_SESSIONS_FILE` | JSON de sesiones web persistentes | `database/web-sessions.json` |
 | `SUBBOT_WEB_PHONE` | Teléfono de la cuenta administradora opcional | vacío |
 | `SUBBOT_WEB_PASSWORD` | Contraseña de la cuenta administradora opcional | vacío |
 | `EVOGB_API_KEY` | Clave de Evogb | configúrala |
@@ -205,12 +206,15 @@ SUBBOT_WEB_ENABLED=1
 SUBBOT_WEB_HOST=0.0.0.0
 SUBBOT_WEB_PORT=3000
 SUBBOT_WEB_ACCOUNTS_FILE=database/web-accounts.json
+SUBBOT_WEB_SESSIONS_FILE=database/web-sessions.json
 ```
 
 Con el panel activo, cualquier persona puede abrir `http://IP-DEL-HOST:3000`, crear una cuenta con teléfono y contraseña, entrar y gestionar únicamente sus propios sub bots. Las cuentas se guardan con contraseña cifrada en `database/web-accounts.json`.
 
 - La cuenta administradora es opcional: define `SUBBOT_WEB_PHONE` y `SUBBOT_WEB_PASSWORD` para crearla o actualizarla al iniciar. Esa cuenta ve y administra los sub bots de todas las cuentas.
 - Las cuentas normales solo ven, inician, detienen y eliminan sus propios sub bots.
+- Las sesiones del navegador se guardan en `database/web-sessions.json` y sobreviven a reinicios y actualizaciones de Tensura.
+- El panel usa tema claro u oscuro automáticamente según la preferencia del sistema operativo.
 - Los sub bots habilitados arrancan al iniciar Tensura aunque el panel esté apagado.
 - La sesión de cada sub bot queda en `Sessions/SubBots/` y los metadatos en `database/subbots.json`; no se guardan tokens en el JSON.
 - Al vincularse o reconectarse, cada sub bot sigue el canal definido en `SUBBOT_FOLLOW_CHANNEL`.

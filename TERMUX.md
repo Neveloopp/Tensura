@@ -86,10 +86,11 @@ SUBBOT_WEB_ENABLED=1
 SUBBOT_WEB_HOST=0.0.0.0
 SUBBOT_WEB_PORT=3000
 SUBBOT_WEB_ACCOUNTS_FILE=database/web-accounts.json
+SUBBOT_WEB_SESSIONS_FILE=database/web-sessions.json
 SUBBOT_FOLLOW_CHANNEL=120363414217688890@newsletter
 ```
 
-Abre `http://IP-DEL-TELEFONO:3000` o `http://127.0.0.1:3000` desde el mismo teléfono. Cualquier persona puede crear una cuenta, entrar y gestionar únicamente sus propios sub bots. La cuenta administradora es opcional y se define con `SUBBOT_WEB_PHONE` y `SUBBOT_WEB_PASSWORD`.
+Abre `http://IP-DEL-TELEFONO:3000` o `http://127.0.0.1:3000` desde el mismo teléfono. Cualquier persona puede crear una cuenta, entrar y gestionar únicamente sus propios sub bots. La cuenta administradora es opcional y se define con `SUBBOT_WEB_PHONE` y `SUBBOT_WEB_PASSWORD`. Las sesiones del navegador se guardan en `database/web-sessions.json` para no perderlas al reiniciar o actualizar.
 
 ## 5. Iniciar
 

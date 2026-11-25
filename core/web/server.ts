@@ -11,6 +11,9 @@ const SESSION_COOKIE = 'tensura_subbots'
 const SESSION_HOURS = 12
 const MAX_LOGIN_ATTEMPTS = 8
 const LOGIN_WINDOW = 10 * 60_000
+const SESSION_FILE = path.resolve(
+  process.env.SUBBOT_WEB_SESSIONS_FILE || path.join('database', 'web-sessions.json')
+)
 
 type WebOptions = {
   manager: SubBotManager
@@ -21,7 +24,7 @@ type WebOptions = {
 }
 
 type Session = {
-  token: string
+  tokenHash: string
   csrf: string
   accountId: string
   phone: string
@@ -52,6 +55,10 @@ function safeEqual(a: string, b: string): boolean {
 
 function randomToken(): string {
   return crypto.randomBytes(32).toString('base64url')
+}
+
+function sessionHash(token: string): string {
+  return hash(token).toString('hex')
 }
 
 function cookies(req: http.IncomingMessage): Record<string, string> {
@@ -168,6 +175,7 @@ export class SubBotWebServer {
   private sessions = new Map<string, Session>()
   private attempts = new Map<string, { count: number; reset: number }>()
   private cleanupTimer: NodeJS.Timeout | null = null
+  private persistQueue: Promise<void> = Promise.resolve()
 
   constructor(options: WebOptions) {
     const requestedPort = Number(options.port)
@@ -183,6 +191,7 @@ export class SubBotWebServer {
   async start(): Promise<{ host: string; port: number }> {
     if (this.server) throw new Error('El panel web ya está iniciado.')
     await webAccountStore.init()
+    await this.loadSessions()
     if (this.options.ownerPhone && this.options.ownerPassword) {
       try {
         const owner = await webAccountStore.ensureOwner(
@@ -229,7 +238,7 @@ export class SubBotWebServer {
   async stop(): Promise<void> {
     if (this.cleanupTimer) clearInterval(this.cleanupTimer)
     this.cleanupTimer = null
-    this.sessions.clear()
+    await this.saveSessions().catch(() => undefined)
     const server = this.server
     this.server = null
     if (!server) return
@@ -240,11 +249,67 @@ export class SubBotWebServer {
     await Promise.race([closed, new Promise(resolve => setTimeout(resolve, 1000))])
   }
 
+  private async loadSessions(): Promise<void> {
+    let parsed: any = null
+    try {
+      parsed = JSON.parse(await fs.promises.readFile(SESSION_FILE, 'utf8'))
+    } catch {
+      return
+    }
+    const now = Date.now()
+    for (const raw of Array.isArray(parsed?.sessions) ? parsed.sessions : []) {
+      const tokenHash = String(raw?.tokenHash || '')
+      const csrf = String(raw?.csrf || '')
+      const accountId = String(raw?.accountId || '')
+      const phone = String(raw?.phone || '')
+      const expiresAt = Number(raw?.expiresAt || 0)
+      if (
+        !/^[a-f0-9]{64}$/.test(tokenHash) ||
+        !csrf ||
+        !accountId ||
+        !phone ||
+        !Number.isFinite(expiresAt) ||
+        expiresAt <= now
+      ) {
+        continue
+      }
+      this.sessions.set(tokenHash, {
+        tokenHash,
+        csrf,
+        accountId,
+        phone,
+        role: raw?.role === 'owner' ? 'owner' : 'user',
+        expiresAt,
+        ip: String(raw?.ip || ''),
+      })
+    }
+    await this.saveSessions().catch(() => undefined)
+  }
+
+  private saveSessions(): Promise<void> {
+    const operation = this.persistQueue.catch(() => undefined).then(async () => {
+      const payload = JSON.stringify({ version: 1, sessions: [...this.sessions.values()] }, null, 2)
+      fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true })
+      const temporary = `${SESSION_FILE}.${process.pid}.${Date.now()}.tmp`
+      await fs.promises.writeFile(temporary, `${payload}\n`, 'utf8')
+      await fs.promises.rename(temporary, SESSION_FILE)
+    })
+    this.persistQueue = operation.catch(error => {
+      console.log(`[web] No se pudieron guardar las sesiones: ${error?.message || error}`)
+    })
+    return operation
+  }
+
   private cleanup() {
     const now = Date.now()
-    for (const [token, session] of this.sessions) {
-      if (session.expiresAt <= now) this.sessions.delete(token)
+    let changed = false
+    for (const [tokenHash, session] of this.sessions) {
+      if (session.expiresAt <= now) {
+        this.sessions.delete(tokenHash)
+        changed = true
+      }
     }
+    if (changed) void this.saveSessions().catch(() => undefined)
     for (const [ip, entry] of this.attempts) {
       if (entry.reset <= now) this.attempts.delete(ip)
     }
@@ -253,10 +318,12 @@ export class SubBotWebServer {
   private session(req: http.IncomingMessage): Session | null {
     const token = cookies(req)[SESSION_COOKIE] || ''
     if (!token) return null
-    const session = this.sessions.get(token)
+    const tokenHash = sessionHash(token)
+    const session = this.sessions.get(tokenHash)
     if (!session) return null
     if (session.expiresAt <= Date.now()) {
-      this.sessions.delete(token)
+      this.sessions.delete(tokenHash)
+      void this.saveSessions().catch(() => undefined)
       return null
     }
     return session
@@ -306,17 +373,18 @@ export class SubBotWebServer {
     return session.role === 'owner' ? undefined : session.accountId
   }
 
-  private beginSession(
+  private async beginSession(
     req: http.IncomingMessage,
     res: http.ServerResponse,
     account: WebAccount,
     status = 200
   ) {
     const token = randomToken()
+    const tokenHash = sessionHash(token)
     const csrf = randomToken()
     const expiresAt = Date.now() + SESSION_HOURS * 60 * 60_000
-    this.sessions.set(token, {
-      token,
+    this.sessions.set(tokenHash, {
+      tokenHash,
       csrf,
       accountId: account.id,
       phone: account.phone,
@@ -324,6 +392,7 @@ export class SubBotWebServer {
       expiresAt,
       ip: clientIp(req),
     })
+    await this.saveSessions().catch(() => undefined)
     return json(
       res,
       status,
@@ -421,7 +490,10 @@ export class SubBotWebServer {
 
     if (pathname === '/api/logout' && method === 'POST') {
       const session = this.session(req)
-      if (session) this.sessions.delete(session.token)
+      if (session) {
+        this.sessions.delete(session.tokenHash)
+        await this.saveSessions().catch(() => undefined)
+      }
       return json(res, 200, { ok: true }, { 'set-cookie': clearSessionCookie(req) })
     }
 

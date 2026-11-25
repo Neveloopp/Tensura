@@ -30,7 +30,7 @@ import { flushDB, getSettings, initDB, updateSettings } from './core/system/data
 import { smsg } from './core/message.ts'
 import { startGroupScheduler } from './core/scheduler.ts'
 import { patchAudioStickerProtocol } from './core/audioSticker.ts'
-import { startProjectWatcher } from './core/system/sync.ts'
+import { setBeforeRestart, startProjectWatcher } from './core/system/sync.ts'
 import { subBotManager } from './core/subbots/manager.ts'
 import { invalidateMainGroups, rememberMainGroup, syncMainGroups } from './core/subbots/mainGroups.ts'
 import { startSubBotWebServer } from './core/web/server.ts'
@@ -41,6 +41,19 @@ let phoneNumber = ''
 let starting = false
 let schedulerTimer: any = null
 let webServer: Awaited<ReturnType<typeof startSubBotWebServer>> | null = null
+let servicesStopped = false
+
+async function stopServices() {
+  if (servicesStopped) return
+  servicesStopped = true
+  try {
+    flushDB()
+  } catch {}
+  await Promise.race([
+    Promise.allSettled([webServer?.stop(), subBotManager.shutdown()]),
+    new Promise(resolve => setTimeout(resolve, 1800)),
+  ])
+}
 
 const sessionDir = path.resolve(botConfig.sessionName)
 const logger = pino({ level: 'silent' })
@@ -389,6 +402,7 @@ async function startBot() {
 
   const total = await commandsPromise
   console.log(chalk.gray(`[cmds] ${total} comandos cargados.`))
+  setBeforeRestart(stopServices)
   startProjectWatcher()
 
   try {
@@ -427,13 +441,7 @@ const shutdown = async () => {
   if (shuttingDown) return
   shuttingDown = true
   try {
-    flushDB()
-  } catch {}
-  try {
-    await Promise.race([
-      Promise.allSettled([webServer?.stop(), subBotManager.shutdown()]),
-      new Promise(resolve => setTimeout(resolve, 1800)),
-    ])
+    await stopServices()
   } finally {
     process.exit(0)
   }
