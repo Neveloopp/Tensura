@@ -125,6 +125,11 @@ export async function sendAudioSticker({
   ])
   const { oggBuffer, seconds } = audio
   const upload = sock.waUploadToServer.bind(sock)
+  const mediaOptions = {
+    upload,
+    jid: chat,
+    logger: sock.logger,
+  } as any
 
   const [audioPrepared, stickerPrepared] = await Promise.all([
     prepareWAMessageMedia(
@@ -132,9 +137,9 @@ export async function sendAudioSticker({
         audio: oggBuffer,
         mimetype: 'audio/ogg; codecs=opus',
       } as any,
-      { upload } as any
+      mediaOptions
     ),
-    prepareWAMessageMedia({ sticker: stickerBuffer } as any, { upload } as any),
+    prepareWAMessageMedia({ sticker: stickerBuffer } as any, mediaOptions),
   ])
 
   const prepared: any = stickerPrepared

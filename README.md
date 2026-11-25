@@ -87,6 +87,11 @@ Tensura/
 │   ├── message.ts           # objeto m (reply, quoted, download...)
 │   ├── scheduler.ts         # horario automático
 │   ├── utils.ts             # JID, fechas, plantillas, temporales
+│   ├── subbots/
+│   │   ├── manager.ts       # conexiones, QR/código y reconexión
+│   │   └── store.ts         # persistencia de sub bots
+│   ├── web/
+│   │   └── server.ts        # panel HTTP, login y API
 │   └── system/
 │       ├── comandos.ts      # registro para el menú
 │       ├── commandLoader.ts # carga y recarga de cmds/
@@ -96,11 +101,13 @@ Tensura/
 │   ├── events.ts            # bienvenida/despedida
 │   ├── info/                # menu, ping, infobot
 │   ├── grupo/               # moderación y administración
+│   ├── owner/               # bots y herramientas de dueño
 │   ├── dow/                 # descargas
 │   ├── otros/               # sync y utilidades
 │   └── sticker/             # stickers
-├── database/                # settings, users, chats, stickers (JSON)
-└── Sessions/                # credenciales de WhatsApp
+├── web/                     # panel de sub bots (HTML/CSS/JS)
+├── database/                # settings, users, chats, sub bots (JSON)
+└── Sessions/                # credenciales de WhatsApp y sub bots
 ```
 
 ## Configuración rápida
@@ -125,6 +132,15 @@ Edita `settings.ts` o crea `.env`:
 | `TENSURA_AUTO_RESTART` | Reinicio automático (`0` lo desactiva) | `1` |
 | `GITHUB_TOKEN` | Token para `sync push` (solo en `.env`) | vacío |
 | `DB_PERSIST_MS` | Retardo de guardado JSON (ms) | `250` |
+| `SUBBOT_DATA_FILE` | JSON de sub bots | `database/subbots.json` |
+| `SUBBOT_SESSION_DIR` | Credenciales de sub bots | `Sessions/SubBots` |
+| `SUBBOT_PAIRING_TTL_MS` | Vigencia de una vinculación (ms) | `180000` |
+| `SUBBOT_SUPERVISOR_MS` | Revisión de sub bots (ms) | `30000` |
+| `SUBBOT_WEB_ENABLED` | Enciende el panel (`1`) o lo apaga (`0`) | `0` |
+| `SUBBOT_WEB_HOST` | Interfaz del panel | `0.0.0.0` |
+| `SUBBOT_WEB_PORT` | Puerto del panel | `3000` |
+| `SUBBOT_WEB_PHONE` | Teléfono de acceso al panel | `OWNER_NUMBER` |
+| `SUBBOT_WEB_PASSWORD` | Contraseña del panel (mínimo 4) | configúrala |
 | `EVOGB_API_KEY` | Clave de Evogb | configúrala |
 | `RAYLAIS_API_KEY` | Clave de Raylais | configúrala |
 
@@ -175,6 +191,28 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 
 ### Sistema
 - `sync` — `status`, `pull`, `push [mensaje]`, `reload` o `restart`. Sin git descarga el ZIP del repo y copia solo los archivos cambiados.
+- `bots` — muestra cuántos sub bots están conectados y cuántos están registrados.
+
+## Sub bots y panel web
+
+Los sub bots son cuentas adicionales que ejecutan los mismos comandos. La cuenta principal puede vincularlas desde el panel web:
+
+```env
+SUBBOT_WEB_ENABLED=1
+SUBBOT_WEB_HOST=0.0.0.0
+SUBBOT_WEB_PORT=3000
+SUBBOT_WEB_PHONE=50585117242
+SUBBOT_WEB_PASSWORD=una-clave-segura
+```
+
+Abre `http://IP-DEL-HOST:3000`, inicia sesión con el teléfono y la contraseña, y elige QR o código de 8 dígitos. La cuenta principal no puede vincularse como sub bot y un mismo número no se puede duplicar.
+
+- Los sub bots habilitados arrancan al iniciar Tensura aunque el panel esté apagado.
+- La sesión de cada sub bot queda en `Sessions/SubBots/` y los metadatos en `database/subbots.json`; no se guardan tokens en el JSON.
+- `SUBBOT_WEB_PASSWORD` es obligatoria para encender el panel y debe tener al menos 4 caracteres.
+- Si el panel queda detrás de un proxy con HTTPS, envía `X-Forwarded-Proto: https` para que la cookie use `Secure`.
+- No expongas el panel directamente a Internet sin HTTPS. Usa `SUBBOT_WEB_HOST=127.0.0.1` y un proxy inverso si es necesario.
+- `#bots` informa cuántos sub bots están conectados.
 
 ## Actualización desde GitHub
 

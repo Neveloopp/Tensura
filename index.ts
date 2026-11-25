@@ -31,12 +31,15 @@ import { smsg } from './core/message.ts'
 import { startGroupScheduler } from './core/scheduler.ts'
 import { patchAudioStickerProtocol } from './core/audioSticker.ts'
 import { startProjectWatcher } from './core/system/sync.ts'
+import { subBotManager } from './core/subbots/manager.ts'
+import { startSubBotWebServer } from './core/web/server.ts'
 import { normalizeJid } from './core/utils.ts'
 
 let useCode = false
 let phoneNumber = ''
 let starting = false
 let schedulerTimer: any = null
+let webServer: Awaited<ReturnType<typeof startSubBotWebServer>> | null = null
 
 const sessionDir = path.resolve(botConfig.sessionName)
 const logger = pino({ level: 'silent' })
@@ -372,19 +375,60 @@ async function startBot() {
   console.log(chalk.gray(`[cmds] ${total} comandos cargados.`))
   startProjectWatcher()
 
+  try {
+    await subBotManager.init()
+    ;(global as any).subbotManager = subBotManager
+    void subBotManager.startAll()
+  } catch (error: any) {
+    console.log(chalk.red('[subbots] No se pudo iniciar:'), error?.message || error)
+  }
+
+  if (/^(1|true|yes|on)$/i.test(String(process.env.SUBBOT_WEB_ENABLED || ''))) {
+    const password = String(process.env.SUBBOT_WEB_PASSWORD || '')
+    if (!password) {
+      console.log(chalk.yellow('[web] Activa SUBBOT_WEB_PASSWORD para iniciar el panel.'))
+    } else {
+      const rawPort = Number(process.env.SUBBOT_WEB_PORT || 3000)
+      const port = Number.isInteger(rawPort) && rawPort > 0 ? rawPort : 3000
+      const host = String(process.env.SUBBOT_WEB_HOST || '0.0.0.0')
+      const panelPhone = String(process.env.SUBBOT_WEB_PHONE || botConfig.owner[0] || '')
+      try {
+        webServer = await startSubBotWebServer({
+          manager: subBotManager,
+          host,
+          port,
+          phone: panelPhone,
+          password,
+        })
+        console.log(chalk.cyan(`[web] Panel disponible en http://${host}:${port}`))
+      } catch (error: any) {
+        console.log(chalk.red('[web] No se pudo iniciar el panel:'), error?.message || error)
+      }
+    }
+  }
+
   await startBot()
 })()
 
-const shutdown = () => {
+let shuttingDown = false
+const shutdown = async () => {
+  if (shuttingDown) return
+  shuttingDown = true
   try {
     flushDB()
+  } catch {}
+  try {
+    await Promise.race([
+      Promise.allSettled([webServer?.stop(), subBotManager.shutdown()]),
+      new Promise(resolve => setTimeout(resolve, 1800)),
+    ])
   } finally {
     process.exit(0)
   }
 }
 
-process.once('SIGINT', shutdown)
-process.once('SIGTERM', shutdown)
+process.once('SIGINT', () => void shutdown())
+process.once('SIGTERM', () => void shutdown())
 
 process.on('uncaughtException', error => {
   const message = String((error as any)?.message || error || '')
