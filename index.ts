@@ -32,6 +32,7 @@ import { startGroupScheduler } from './core/scheduler.ts'
 import { patchAudioStickerProtocol } from './core/audioSticker.ts'
 import { startProjectWatcher } from './core/system/sync.ts'
 import { subBotManager } from './core/subbots/manager.ts'
+import { invalidateMainGroups, rememberMainGroup, syncMainGroups } from './core/subbots/mainGroups.ts'
 import { startSubBotWebServer } from './core/web/server.ts'
 import { normalizeJid } from './core/utils.ts'
 
@@ -262,6 +263,7 @@ async function startBot() {
 
         if (schedulerTimer) clearInterval(schedulerTimer)
         schedulerTimer = startGroupScheduler(sock)
+        void syncMainGroups(true)
 
         console.log(
           boxen(
@@ -327,6 +329,8 @@ async function startBot() {
           if (!raw?.message) continue
           if (raw.key?.remoteJid === 'status@broadcast') continue
           if (String(raw.key?.id || '').startsWith('BAE5') && String(raw.key?.id || '').length === 16) continue
+          const chat = normalizeJid(raw.key?.remoteJid)
+          if (chat.endsWith('@g.us')) rememberMainGroup(chat)
           const m = await smsg(sock, raw)
           await handler(sock, m)
         } catch (error: any) {
@@ -336,11 +340,23 @@ async function startBot() {
     })
 
     sock.ev.on('group-participants.update', async (update: any) => {
+      invalidateMainGroups()
+      void syncMainGroups(true)
       try {
         await groupEvents(sock, update)
       } catch (error: any) {
         console.log(chalk.gray(`[grupo] ${error?.message || error}`))
       }
+    })
+
+    sock.ev.on('groups.upsert', () => {
+      invalidateMainGroups()
+      void syncMainGroups(true)
+    })
+
+    sock.ev.on('groups.update', () => {
+      invalidateMainGroups()
+      void syncMainGroups(true)
     })
 
     sock.sendText = (jid: string, text: string, quoted: any = '', options: any = {}) =>

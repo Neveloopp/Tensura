@@ -15,7 +15,8 @@ import handler from '../../handler.ts'
 import groupEvents from '../../cmds/events.ts'
 import { patchAudioStickerProtocol } from '../audioSticker.ts'
 import { smsg } from '../message.ts'
-import { jidNumber } from '../utils.ts'
+import { isGroupJid, jidNumber, normalizeJid } from '../utils.ts'
+import { mainBotIsInGroup } from './mainGroups.ts'
 import {
   normalizeSubBotId,
   normalizeSubBotPhone,
@@ -475,6 +476,8 @@ export class SubBotManager {
           if (!raw?.message) continue
           if (raw.key?.remoteJid === 'status@broadcast') continue
           if (String(raw.key?.id || '').startsWith('BAE5') && String(raw.key?.id || '').length === 16) continue
+          const chat = normalizeJid(raw.key?.remoteJid)
+          if (isGroupJid(chat) && (await mainBotIsInGroup(chat))) continue
           const m = await smsg(sock, raw)
           await handler(sock, m)
         } catch (error: any) {
@@ -485,6 +488,8 @@ export class SubBotManager {
 
     sock.ev.on('group-participants.update', async (update: any) => {
       if (!entry.paired || entry.sock !== sock || entry.stopRequested) return
+      const groupJid = normalizeJid(update?.id)
+      if (!isGroupJid(groupJid) || (await mainBotIsInGroup(groupJid))) return
       try {
         await groupEvents(sock, update)
       } catch (error: any) {

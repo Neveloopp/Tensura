@@ -214,6 +214,7 @@ Con el panel activo, cualquier persona puede abrir `http://IP-DEL-HOST:3000`, cr
 - Los sub bots habilitados arrancan al iniciar Tensura aunque el panel esté apagado.
 - La sesión de cada sub bot queda en `Sessions/SubBots/` y los metadatos en `database/subbots.json`; no se guardan tokens en el JSON.
 - Al vincularse o reconectarse, cada sub bot sigue el canal definido en `SUBBOT_FOLLOW_CHANNEL`.
+- Si la cuenta principal está en un grupo, los sub bots ignoran los mensajes y eventos de ese grupo para no duplicar respuestas.
 - `#bots` informa cuántos sub bots están conectados.
 
 ## Actualización desde GitHub
