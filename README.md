@@ -13,6 +13,8 @@ Versión recortada de **Viko** enfocada en tres cosas: **grupos**, **descargas**
 
 - Conexión por **código QR** o **código de 8 dígitos**.
 - Comandos con prefijos configurables y recarga en caliente al editar archivos de `cmds/`.
+- `sync` actualiza desde GitHub (git o ZIP), recarga comandos y reinicia el proceso si cambia el núcleo.
+- `stch` publica stickers de audio en el canal y se configura con `stch --config`.
 - Bienvenidas, despedidas, reglas, antienlaces, advertencias, expulsiones, administradores, invitaciones, solicitudes, cierre/apertura y horario automático.
 - Descargas de YouTube, TikTok, Facebook, Instagram, MediaFire, Pinterest, Threads y APK.
 - Stickers de imagen/video y stickers con audio (`#s -aud`) con metadatos por usuario.
@@ -88,12 +90,14 @@ Tensura/
 │   └── system/
 │       ├── comandos.ts      # registro para el menú
 │       ├── commandLoader.ts # carga y recarga de cmds/
+│       ├── sync.ts          # git, actualización y watcher
 │       └── database.ts      # JSON DB y globales
 ├── cmds/
 │   ├── events.ts            # bienvenida/despedida
 │   ├── info/                # menu, ping, infobot
 │   ├── grupo/               # moderación y administración
 │   ├── dow/                 # descargas
+│   ├── otros/               # sync y utilidades
 │   └── sticker/             # stickers
 ├── database/                # settings, users, chats, stickers (JSON)
 └── Sessions/                # credenciales de WhatsApp
@@ -114,6 +118,12 @@ Edita `settings.ts` o crea `.env`:
 | `STICKER_AUTHOR` | Autor por defecto | `Tensura Bot` |
 | `STICKER_AUDIO_MAX` | Duración máxima de `-aud` | `25` |
 | `DOWNLOAD_MAX_MB` | Límite de descargas | `100` |
+| `SYNC_DIR` | Ruta de un clon git para `sync` (opcional) | proyecto actual |
+| `SYNC_REPO` | Repo usado en modo ZIP | `Neveloopp/Tensura` |
+| `SYNC_BRANCH` | Rama a descargar | `main` |
+| `SYNC_WATCH` | Vigilar cambios (`0` lo desactiva) | `1` |
+| `TENSURA_AUTO_RESTART` | Reinicio automático (`0` lo desactiva) | `1` |
+| `GITHUB_TOKEN` | Token para `sync push` (solo en `.env`) | vacío |
 | `DB_PERSIST_MS` | Retardo de guardado JSON (ms) | `250` |
 | `EVOGB_API_KEY` | Clave de Evogb | configúrala |
 | `RAYLAIS_API_KEY` | Clave de Raylais | configúrala |
@@ -161,6 +171,35 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `sticker` / `s` — imagen o video a sticker. Responde a un video con `#s -aud` para incluir el audio (máximo 25 s).
 - `toimg` — sticker a PNG.
 - `setmeta` — cambia pack/autor (`#setmeta Mi Pack | Mi Nombre`); `delmeta` restaura.
+- `stch` — responde a un video y publica un sticker con audio en el canal. Se configura con `stch --config` (`channel`, `group`, `pack`, `author`, `max`, `on/off`, `reset`).
+
+### Sistema
+- `sync` — `status`, `pull`, `push [mensaje]`, `reload` o `restart`. Sin git descarga el ZIP del repo y copia solo los archivos cambiados.
+
+## Actualización desde GitHub
+
+```bash
+# dueño del bot, desde WhatsApp
+#sync                 # pull + recarga/reinicio automático
+#sync status          # rama, último commit y cambios locales
+#sync push            # sube cambios (requiere git + GITHUB_TOKEN)
+#sync reload          # recarga cmds/ sin reiniciar
+```
+
+`sync` funciona de dos formas:
+
+1. **Con git:** actualiza el clon (`SYNC_DIR` o el proyecto actual) con `pull --ff-only` y sube con `push`.
+2. **Sin git:** descarga el ZIP de `SYNC_REPO` en `SYNC_BRANCH` y copia solo los archivos que cambiaron. Nunca sobrescribe `.env`, `.env.example`, `settings.ts`, `Sessions/`, `database/` ni capturas.
+
+El watcher recarga `cmds/` al guardar y reinicia el proceso para cambios en `core/`, `index.ts`, `handler.ts` o `settings.ts`. En paneles con reinicio automático (Pterodactyl, PM2, systemd) solo sale del proceso; en ejecución directa lanza un reemplazo. `TENSURA_AUTO_RESTART=0` desactiva el reinicio y `node --watch` lo delega al propio Node.
+
+Para publicar desde el bot, el clon debe tener `origin` y un token con permiso de escritura en `.env`:
+
+```env
+GITHUB_TOKEN=github_pat_...
+```
+
+No se suben `settings.ts`, `.env`, `.env.example` locales ni capturas, aunque estén modificados.
 
 ## Crear un comando
 
@@ -219,7 +258,7 @@ Puedes editarlos con cualquier editor de texto. Los cambios se mantienen en memo
 - Si `sharp` no carga, las imágenes se convierten con ffmpeg; los stickers siguen funcionando.
 - Para stickers con audio, `ffmpeg` debe incluir `libopus` y `libwebp`. En ffmpeg 9 ya no se usa `-vsync`; Tensura no depende de esa opción.
 - Las descargas usan `fetch` nativo para evitar bloqueos de Cloudflare en los enlaces de Raylais.
-- Si cambias un comando, el loader lo recarga sin reiniciar el bot.
+- Si cambias un comando, el loader lo recarga sin reiniciar el bot. Los cambios de núcleo los aplica `sync` o el watcher reiniciando el proceso.
 - Los scripts usan `node` directamente (`node --import tsx`, `node node_modules/typescript/bin/tsc`), así no dependen de `/usr/bin/env` y funcionan en Termux.
 - Usa `@whiskeysockets/baileys@7.0.0-rc14`, el paquete oficial; no se usa ningún fork.
 - El benchmark local está en `scripts/benchmark.ts`; simula 25 ms por llamada de WhatsApp y no necesita sesión real.

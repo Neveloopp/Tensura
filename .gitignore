@@ -5,3 +5,5 @@ core/system/tmp/
 .env
 *.log
 .DS_Store
+
+Screenshot_*

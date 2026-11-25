@@ -158,8 +158,13 @@ function watchDir(dir: string) {
   }
 }
 
-export default async function seeCommands() {
+export async function reloadCommands() {
   await scan(commandsFolder)
+  return global.comandos.size
+}
+
+export default async function seeCommands() {
+  await reloadCommands()
   watchDir(commandsFolder)
   return global.comandos.size
 }

@@ -127,12 +127,24 @@ Si prefieres no mantener el teléfono encendido, el host recomendado es:
 
 ## 7. Actualizar
 
+Desde WhatsApp, como dueño:
+
+```text
+#sync status
+#sync
+#sync push
+```
+
+`#sync` descarga los cambios del repositorio, recarga `cmds/` y reinicia el proceso si cambió el núcleo. También puedes hacerlo a mano:
+
 ```bash
 cd ~/Tensura
 git pull
 npm install
 npm start
 ```
+
+Si el proyecto no es un clon git, `#sync` descarga el ZIP de `Neveloopp/Tensura` y copia solo los archivos cambiados; no toca `.env`, `settings.ts`, `Sessions/` ni `database/`. Para publicar cambios con `#sync push`, el clon debe tener `origin` y `GITHUB_TOKEN` en `.env`.
 
 ## 8. Problemas comunes
 

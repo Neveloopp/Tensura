@@ -30,6 +30,7 @@ import { flushDB, getSettings, initDB, updateSettings } from './core/system/data
 import { smsg } from './core/message.ts'
 import { startGroupScheduler } from './core/scheduler.ts'
 import { patchAudioStickerProtocol } from './core/audioSticker.ts'
+import { startProjectWatcher } from './core/system/sync.ts'
 import { normalizeJid } from './core/utils.ts'
 
 let useCode = false
@@ -369,6 +370,7 @@ async function startBot() {
 
   const total = await commandsPromise
   console.log(chalk.gray(`[cmds] ${total} comandos cargados.`))
+  startProjectWatcher()
 
   await startBot()
 })()
