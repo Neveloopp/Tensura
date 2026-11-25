@@ -1511,6 +1511,24 @@ img {
   opacity: 0.32;
 }
 
+.code-wrap {
+  display: grid;
+  width: 100%;
+  gap: 10px;
+  justify-items: center;
+}
+
+.code-copy {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.code-copy:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: #dcebe2;
+}
+
 .pairing-title {
   margin: 0;
   font-size: 15px;
