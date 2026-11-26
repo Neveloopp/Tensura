@@ -188,10 +188,10 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `apk` — busca y descarga una APK.
 
 ### Stickers
-- `sticker` / `s` — imagen o video a sticker. Responde a un video con `#s -aud` para incluir el audio (máximo 25 s).
+- `sticker` / `s` — imagen o video a sticker. Responde a un video con `#s -aud` para incluir el audio; si supera 25 s se recorta automáticamente.
 - `toimg` — sticker a PNG.
 - `setmeta` — cambia pack/autor (`#setmeta Mi Pack | Mi Nombre`); `delmeta` restaura.
-- `stch` — responde a un video y publica un sticker con audio en el canal. Lo pueden usar todos los miembros del grupo configurado; la configuración sigue siendo solo del Creador (`stch --config`: `channel`, `group`, `pack`, `author`, `max`, `on/off`, `reset`).
+- `stch` — responde a un video y publica un sticker con audio en el canal; si supera el máximo configurado se recorta automáticamente. Lo pueden usar todos los miembros del grupo configurado; la configuración sigue siendo solo del Creador (`stch --config`: `channel`, `group`, `pack`, `author`, `max`, `on/off`, `reset`).
 - `texch` — envía un mensaje de texto al mismo canal (`#texch Hola` o responde a un texto). También lo pueden usar los miembros del grupo configurado.
 
 ### Sistema

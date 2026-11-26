@@ -162,10 +162,6 @@ export default {
       if (!Number.isFinite(duration) || duration <= 0) {
         throw new Error('No pude determinar la duración del video.')
       }
-      if (duration > config.maxSeconds) {
-        throw new Error(`El video supera el límite de ${config.maxSeconds}s.`)
-      }
-
       await m.reply('⏳ Procesando el sticker con audio para el canal...')
 
       await sendAudioSticker({
@@ -183,10 +179,11 @@ export default {
         duration,
       })
 
+      const trimmed = duration > config.maxSeconds
       return m.reply(
         `(＾▽＾) Sticker con audio publicado en el canal.\n• Duración: ${Math.ceil(
           Math.min(config.maxSeconds, duration)
-        )}s`
+        )}s${trimmed ? ' (recortado automáticamente)' : ''}`
       )
     } catch (error: any) {
       return m.reply(`(x_x) No pude publicar el sticker: ${error?.message || 'error desconocido'}`)

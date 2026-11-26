@@ -60,12 +60,6 @@ export default {
 
       if (withAudio) {
         const duration = await probeDuration(input)
-        if (duration > botConfig.sticker.audioMaxSeconds) {
-          throw new Error(
-            `El límite de los stickers con audio es ${botConfig.sticker.audioMaxSeconds} segundos.`
-          )
-        }
-
         output = tempFile('sticker-output', '.webp')
         audioOutput = tempFile('sticker-audio', '.ogg')
 

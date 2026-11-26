@@ -120,8 +120,10 @@ export async function videoToWebp(data: Buffer, maxSeconds = 6): Promise<Buffer>
   fs.writeFileSync(input, data)
 
   try {
+    const colorArgs = await videoColorFixArgs(input)
     await run('ffmpeg', [
       '-y',
+      ...colorArgs,
       '-i', input,
       '-t', String(Math.max(1, Math.min(maxSeconds, 20))),
       '-vf', 'fps=12,scale=512:512:force_original_aspect_ratio=increase,crop=512:512,setsar=1,format=rgba',
@@ -138,6 +140,45 @@ export async function videoToWebp(data: Buffer, maxSeconds = 6): Promise<Buffer>
     fs.rmSync(input, { force: true })
     fs.rmSync(output, { force: true })
   }
+}
+
+async function videoColorFixArgs(inputPath: string): Promise<string[]> {
+  let stream: any = null
+  try {
+    const { stdout } = await run('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=codec_name,color_space,color_transfer,color_primaries',
+      '-of', 'json',
+      inputPath,
+    ])
+    stream = JSON.parse(stdout)?.streams?.[0] || null
+  } catch {
+    return []
+  }
+
+  const codec = String(stream?.codec_name || '').toLowerCase()
+  const reserved = (value: any) => String(value || '').toLowerCase() === 'reserved'
+  const options: string[] = []
+
+  if (codec === 'h264' || codec === 'hevc') {
+    if (reserved(stream?.color_primaries)) options.push('colour_primaries=2')
+    if (reserved(stream?.color_transfer)) options.push('transfer_characteristics=2')
+    if (reserved(stream?.color_space)) options.push('matrix_coefficients=2')
+    if (!options.length) return []
+    const filter = codec === 'h264' ? 'h264_metadata' : 'hevc_metadata'
+    return ['-bsf:v', `${filter}=${options.join(':')}`]
+  }
+
+  if (codec === 'av1') {
+    if (reserved(stream?.color_primaries)) options.push('color_primaries=2')
+    if (reserved(stream?.color_transfer)) options.push('transfer_characteristics=2')
+    if (reserved(stream?.color_space)) options.push('matrix_coefficients=2')
+    if (!options.length) return []
+    return ['-bsf:v', `av1_metadata=${options.join(':')}`]
+  }
+
+  return []
 }
 
 export async function probeDuration(inputPath: string): Promise<number> {
@@ -289,9 +330,12 @@ export async function convertVideoForAudioSticker(
       ? [[8, 45], [6, 36], [5, 24], [4, 16]]
       : [[10, 50], [8, 36], [6, 24], [5, 16]]
 
+  const colorArgs = await videoColorFixArgs(inputPath)
+
   for (const [fps, quality] of attempts) {
     await run('ffmpeg', [
       '-y',
+      ...colorArgs,
       '-i', inputPath,
       '-t', String(maxSeconds),
       '-vf', `fps=${fps},scale=512:512:force_original_aspect_ratio=increase,crop=512:512,setsar=1,format=rgba`,
@@ -384,8 +428,10 @@ export async function extractAudioMp3(
 }
 
 export async function convertVideoToStickerFile(inputPath: string, outputPath: string, maxSeconds = 6) {
+  const colorArgs = await videoColorFixArgs(inputPath)
   await run('ffmpeg', [
     '-y',
+    ...colorArgs,
     '-i', inputPath,
     '-t', String(maxSeconds),
     '-vf', 'fps=12,scale=512:512:force_original_aspect_ratio=increase,crop=512:512,setsar=1,format=rgba',
