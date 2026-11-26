@@ -197,6 +197,9 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 ### Sistema
 - `sync` — `status`, `pull`, `push [mensaje]`, `reload` o `restart`. Sin git descarga el ZIP del repo y copia solo los archivos cambiados.
 - `bots` — muestra cuántos sub bots están conectados y cuántos están registrados.
+- `antiprivado` — `on` u `off` bloquea los mensajes privados de otras personas. Se guarda por bot y el Creador siempre puede seguir usando el bot en privado.
+
+El estado de `antiprivado` es independiente en el bot principal y en cada sub bot (`database/settings.json`). Al activarlo, los mensajes privados de usuarios que no sean el Creador o el responsable del sub bot se ignoran.
 
 ## Sub bots y panel web
 

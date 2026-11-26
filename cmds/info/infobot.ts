@@ -19,6 +19,7 @@ export default {
       `│ ➛ Versión: ${botConfig.version}`,
       `│ ➛ Owner: ${settings.owner || botConfig.owner[0] || '—'}`,
       `│ ➛ Prefijos: ${Array.isArray(settings.prefijo) ? settings.prefijo.join(' ') : botConfig.prefixes.join(' ')}`,
+      `│ ➛ Antiprivado: ${settings.antiprivado ? 'activado' : 'desactivado'}`,
       `│ ➛ Comandos: ${commands.filter(command => !command.hidden).length}`,
       `│ ➛ Uptime: ${formatMs(process.uptime() * 1000)}`,
       `│ ➛ Stickers con audio: hasta ${botConfig.sticker.audioMaxSeconds}s`,

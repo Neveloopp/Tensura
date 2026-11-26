@@ -82,6 +82,7 @@ function defaultSettings(botId: string) {
     namecanal: botConfig.channel.name,
     prefijo: botConfig.prefixes,
     type: 'Owner',
+    antiprivado: false,
     commandsejecut: 0,
     createdAt: now(),
   }

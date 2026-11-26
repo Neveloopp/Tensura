@@ -76,6 +76,16 @@ export default async function handler(sock: any, m: any) {
   const body = String(m.text || '').trim()
   if (!body) return
 
+  const subbot = sock?.__subbot
+  const ownerNumbers = new Set(
+    [...botConfig.owner, subbot?.managerPhone, subbot?.botId]
+      .map(number => jidNumber(number))
+      .filter(Boolean)
+  )
+  const isOwner = ownerNumbers.has(jidNumber(m.sender)) || m.sender === botId
+
+  if (botSettings.antiprivado && !m.isGroup && !isOwner) return
+
   const prefix = prefixes.find(item => item && body.startsWith(item)) || ''
   const raw = prefix ? body.slice(prefix.length).trim() : body
   const [commandPart, ...args] = raw.split(/\s+/)
@@ -109,13 +119,6 @@ export default async function handler(sock: any, m: any) {
     updateChat(m.chat, 'title', groupTitle)
   }
 
-  const subbot = sock?.__subbot
-  const ownerNumbers = new Set(
-    [...botConfig.owner, subbot?.managerPhone, subbot?.botId]
-      .map(number => jidNumber(number))
-      .filter(Boolean)
-  )
-  const isOwner = ownerNumbers.has(jidNumber(m.sender)) || m.sender === botId
   const isAdmin = m.isGroup
     ? await isJidAdminInGroup(sock, m.chat, m.sender).catch(() => false)
     : false
