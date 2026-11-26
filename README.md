@@ -157,7 +157,7 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 
 ### Información
 - `menu` / `help` / `allmenu` — menú y ayuda por comando.
-- `ping` — RTT real de WhatsApp, event loop, CPU, RAM y diagnóstico.
+- `ping` — RTT real de WhatsApp, event loop, CPU, RAM y diagnóstico (250 ms de muestra y hasta 3 s de espera).
 - `infobot` — información del bot.
 
 ### Grupos
