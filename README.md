@@ -25,7 +25,7 @@ Versión recortada de **Viko** enfocada en tres cosas: **grupos**, **descargas**
 
 - Node.js 20 o superior.
 - `ffmpeg` y `ffprobe` en el PATH (obligatorios para stickers de video y `-aud`).
-- `@whiskeysockets/baileys` oficial (npm lo instala; no hace falta Git).
+- Fork `@whiskeysockets/baileys` de Tensura (se instala desde el release; no hace falta Git).
 - `sharp` es opcional (`optionalDependencies`): si no carga, Tensura usa ffmpeg para las imágenes.
 
 En Termux:
@@ -157,7 +157,7 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 
 ### Información
 - `menu` / `help` / `allmenu` — menú y ayuda por comando.
-- `ping` — latencia, uptime y memoria.
+- `ping` — RTT real de WhatsApp, event loop, CPU, RAM y diagnóstico.
 - `infobot` — información del bot.
 
 ### Grupos
@@ -317,14 +317,14 @@ Puedes editarlos con cualquier editor de texto. Los cambios se mantienen en memo
 - Las descargas usan `fetch` nativo para evitar bloqueos de Cloudflare en los enlaces de Raylais.
 - Si cambias un comando, el loader lo recarga sin reiniciar el bot. Los cambios de núcleo los aplica `sync` o el watcher reiniciando el proceso.
 - Los scripts usan `node` directamente (`node --import tsx`, `node node_modules/typescript/bin/tsc`), así no dependen de `/usr/bin/env` y funcionan en Termux.
-- Usa `@whiskeysockets/baileys@7.0.0-rc14`, el paquete oficial; no se usa ningún fork.
+- Usa el fork `Neveloopp/baileys-tensura` (`v7.0.0-rc14-tensura.1`), instalado desde un release sin compilar.
 - El benchmark local está en `scripts/benchmark.ts`; simula 25 ms por llamada de WhatsApp y no necesita sesión real.
 
 ## Rendimiento
 
-Medido con `npm run bench` (12 iteraciones, 25 ms simulados por llamada de red):
+Comparativa histórica con `npm run bench` (12 iteraciones, 25 ms simulados por llamada de red):
 
-| Prueba | Antes (fork) | Después (oficial + optimizado) | Mejora |
+| Prueba | Antes | Optimizado | Mejora |
 | --- | ---: | ---: | ---: |
 | `#ping` | 109.8 ms | 28.7 ms | -74% |
 | Menú privado | 82.3 ms | 28.9 ms | -65% |
@@ -336,6 +336,20 @@ Medido con `npm run bench` (12 iteraciones, 25 ms simulados por llamada de red):
 | Carga de comandos | 1184 ms | 851 ms | -28% |
 
 Cambios principales: `readMessages` y presencia ya no bloquean la respuesta, `#ping` envía un solo mensaje, la DB escribe en segundo plano, el sticker con audio convierte video/audio y sube ambos medios en paralelo, WebP usa compresión 2 y los comandos se cargan con concurrencia 2. En un video de 25 s el sticker con audio bajó de 9.2 s a 4.2 s al elegir fps/calidad según la duración. Con el Baileys oficial sin optimizar, la carga era ~1664 ms y el sticker de audio de 3 s ~2448 ms; con las mejoras quedaron en ~851 ms y ~960 ms. La red real de WhatsApp sigue siendo el factor dominante en los comandos de descarga.
+
+Estos números son del benchmark local de comandos; no miden la red real ni el consumo del proceso.
+
+## Baileys del fork
+
+La dependencia apunta al release `v7.0.0-rc14-tensura.1` de [`Neveloopp/baileys-tensura`](https://github.com/Neveloopp/baileys-tensura). Incluye:
+
+- Timeouts acotados para conexión, consultas, descargas y subidas.
+- Keepalive efectivo de 20 s (máximo 30 s) sin solapar pings.
+- Watchdog de cuerpo inactivo en descargas de medios.
+- Cachés con límite de entradas para sesiones, reintentos y dispositivos.
+- Manejo de frames corruptos sin tumbar el proceso.
+
+Tensura ya no fuerza `keepAliveIntervalMs: 45000` ni la vista previa de alta calidad; usa los valores del fork.
 
 ## Créditos
 

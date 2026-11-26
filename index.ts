@@ -209,10 +209,9 @@ async function startBot() {
         keys: makeCacheableSignalKeyStore(state.keys, logger),
       },
       markOnlineOnConnect: false,
-      generateHighQualityLinkPreview: true,
+      generateHighQualityLinkPreview: false,
       syncFullHistory: false,
       getMessage: async () => undefined,
-      keepAliveIntervalMs: 45000,
     } as any)
 
     ;(global as any).sock = sock

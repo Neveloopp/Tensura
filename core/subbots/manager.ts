@@ -572,10 +572,9 @@ export class SubBotManager {
           keys: makeCacheableSignalKeyStore(state.keys, logger),
         },
         markOnlineOnConnect: false,
-        generateHighQualityLinkPreview: true,
+        generateHighQualityLinkPreview: false,
         syncFullHistory: false,
         getMessage: async () => undefined,
-        keepAliveIntervalMs: 45000,
       })
       entry.sock = sock
       sock.ev.on('creds.update', saveCreds)
