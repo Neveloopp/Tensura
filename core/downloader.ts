@@ -10,8 +10,27 @@ import { pipeline } from 'stream/promises'
 import botConfig from '../settings.ts'
 import { ensureTmpDir, formatBytes, sanitizeFilename, tempFile } from './utils.ts'
 
+const API_TIMEOUT_MS = 30_000
+const TEXT_TIMEOUT_MS = 30_000
+const BUFFER_TIMEOUT_MS = 90_000
+const FILE_TIMEOUT_MS = 120_000
+const SEARCH_TIMEOUT_MS = 20_000
+
+function withDeadline<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms)
+      timer.unref?.()
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
+}
+
 export const http = axios.create({
-  timeout: 120000,
+  timeout: API_TIMEOUT_MS,
   maxRedirects: 5,
   headers: {
     'User-Agent':
@@ -40,7 +59,7 @@ export async function getJson(url: string, config: any = {}) {
 
 export async function getText(url: string, config: any = {}) {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), Number(config.timeout) || 120000)
+  const timer = setTimeout(() => controller.abort(), Number(config.timeout) || TEXT_TIMEOUT_MS)
   try {
     const response = await fetch(url, {
       headers: { ...BROWSER_HEADERS, ...(config.headers || {}) },
@@ -56,7 +75,7 @@ export async function getText(url: string, config: any = {}) {
 
 export async function getBuffer(url: string, maxBytes = botConfig.download.maxBytes) {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 180000)
+  const timer = setTimeout(() => controller.abort(), BUFFER_TIMEOUT_MS)
   try {
     const response = await fetch(url, { headers: BROWSER_HEADERS, redirect: 'follow', signal: controller.signal })
     if (!response.ok) throw new Error(`No se pudo descargar el archivo (HTTP ${response.status}).`)
@@ -80,7 +99,7 @@ export async function downloadToFile(
   maxBytes = botConfig.download.maxBytes
 ) {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 180000)
+  const timer = setTimeout(() => controller.abort(), FILE_TIMEOUT_MS)
   try {
     const response = await fetch(url, { headers: BROWSER_HEADERS, redirect: 'follow', signal: controller.signal })
     if (!response.ok || !response.body) {
@@ -183,7 +202,11 @@ export function parseYouTubeId(value: string): string {
 export async function searchYouTube(query: string, limit = 8) {
   const mod: any = await import('yt-search')
   const yts = mod?.default || mod
-  const result = await yts(query)
+  const result = await withDeadline(
+    Promise.resolve().then(() => yts(query)),
+    SEARCH_TIMEOUT_MS,
+    'La búsqueda en YouTube tardó demasiado.'
+  )
   return (result?.videos || []).slice(0, limit).map((video: any) => ({
     url: `https://youtu.be/${video.videoId}`,
     videoId: video.videoId,
@@ -202,7 +225,11 @@ export async function resolveYouTube(input: string) {
   if (id) {
     const mod: any = await import('yt-search')
     const yts = mod?.default || mod
-    const result = await yts({ videoId: id })
+    const result = await withDeadline(
+      Promise.resolve().then(() => yts({ videoId: id })),
+      SEARCH_TIMEOUT_MS,
+      'YouTube tardó demasiado en responder.'
+    )
     if (result?.videoId) {
       return {
         url: `https://youtu.be/${result.videoId}`,

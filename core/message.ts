@@ -15,17 +15,35 @@ import {
   jidNumber,
 } from './utils.ts'
 
+const MEDIA_TIMEOUT_MS = 60_000
+
+function withDeadline<T>(promise: Promise<T>, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), MEDIA_TIMEOUT_MS)
+      timer.unref?.()
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
+}
+
 function contentOf(message: any, type: string) {
   return type ? message?.[type] : null
 }
 
 async function safeDownload(raw: any, sock: any): Promise<Buffer> {
   const options = { logger: sock?.logger, reuploadRequest: sock?.updateMediaMessage }
-  try {
-    return await downloadMediaMessage(raw, 'buffer', {}, options)
-  } catch {
-    return await downloadMediaMessage(raw, 'buffer', {})
+  const attempt = async () => {
+    try {
+      return await downloadMediaMessage(raw, 'buffer', {}, options)
+    } catch {
+      return await downloadMediaMessage(raw, 'buffer', {})
+    }
   }
+  return withDeadline(attempt(), 'La descarga del archivo multimedia tardó demasiado.')
 }
 
 export async function smsg(sock: any, raw: any) {

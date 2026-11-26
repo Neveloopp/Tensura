@@ -4,6 +4,8 @@
  */
 import { getBuffer } from '../../core/downloader.ts'
 
+const NETWORK_TIMEOUT_MS = 20_000
+
 const HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -29,7 +31,10 @@ function extract(html: string, patterns: RegExp[]) {
 }
 
 async function scrapeThreads(url: string) {
-  const home = await fetch('https://threadsmate.com/', { headers: HEADERS })
+  const home = await fetch('https://threadsmate.com/', {
+    headers: HEADERS,
+    signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
+  })
   const rawCookies = (home.headers as any).getSetCookie?.() || []
   const cookies = rawCookies.length
     ? rawCookies.map((cookie: string) => cookie.split(';')[0].trim())
@@ -71,6 +76,7 @@ async function scrapeThreads(url: string) {
       Cookie: cookies.join('; '),
     },
     body: body.toString(),
+    signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
   })
 
   const json = await response.json().catch(() => ({} as any))

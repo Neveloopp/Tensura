@@ -157,7 +157,7 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 
 ### Información
 - `menu` / `help` / `allmenu` — menú y ayuda por comando.
-- `ping` — RTT real de WhatsApp, event loop, CPU, RAM y diagnóstico (250 ms de muestra y hasta 3 s de espera).
+- `ping` — RTT real de WhatsApp, event loop, CPU, RAM, límites del contenedor (cgroup) y estado de las colas (250 ms de muestra y hasta 3 s de espera). La línea `Colas` muestra `activos/límite+esperando`; por ejemplo `dow 2/2+8` significa descargas llenas y 8 comandos esperando.
 - `infobot` — información del bot.
 
 ### Grupos
@@ -207,7 +207,7 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 
 El estado de `antiprivado` es independiente en el bot principal y en cada sub bot (`database/settings.json`). Al activarlo, los mensajes privados de usuarios que no sean el Creador o el responsable del sub bot se ignoran.
 
-Las conversiones de stickers y las descargas tienen colas separadas con límites para evitar que saturen el bot. Los comandos rápidos como `ping`, `menu` o la configuración no esperan a esas tareas; si una cola pesada está llena, el bot responde que está saturado en vez de quedarse bloqueado. La consola oculta el ruido de `Closing session` de libsignal; usa `TENSURA_VERBOSE=1` para verlo.
+Las conversiones de stickers y las descargas tienen colas separadas con límites para evitar que saturen el bot. Los comandos rápidos como `ping`, `menu` o la configuración no esperan a esas tareas; si una cola pesada está llena, el bot responde que está saturado en vez de quedarse bloqueado y `#ping` lo muestra en la línea `Colas`. Las descargas y búsquedas tienen timeouts (30 s APIs/texto, 20 s búsquedas, 90 s búferes, 120 s archivos y 60 s multimedia) y una espera máxima en cola (20–30 s) para que una descarga atascada no bloquee el bot indefinidamente. La consola oculta el ruido de `Closing session` de libsignal; usa `TENSURA_VERBOSE=1` para verlo.
 
 ## Sub bots y panel web
 
