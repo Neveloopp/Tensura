@@ -3,7 +3,11 @@
  * `stch --config` permite configurar el destino y el estilo.
  */
 import fs from 'fs'
-import { sendAudioSticker } from '../../core/audioSticker.ts'
+import {
+  downloadStickerAudio,
+  sendAudioSticker,
+  sendPreparedAudioSticker,
+} from '../../core/audioSticker.ts'
 import {
   channelAccessError,
   getChannelConfig,
@@ -24,6 +28,7 @@ function helpText(prefix: string, config: ReturnType<typeof getChannelConfig>) {
     `│ ➛ Pack: ${config.pack}`,
     `│ ➛ Autor: ${config.author}`,
     `│ ➛ Máximo: ${config.maxSeconds}s`,
+    `│ ➛ Entrada: video o sticker con audio`,
     '│',
     '│ Para cambiar:',
     `│ ${p}stch --config channel https://whatsapp.com/channel/...`,
@@ -51,10 +56,11 @@ export default {
   command: ['stch'],
   alias: ['stickerchannel', 'stickeraudiochannel'],
   category: 'sticker',
-  description: 'Crea un sticker con audio y lo publica en el canal configurado.',
+  description: 'Publica un sticker con audio en el canal configurado; acepta videos o stickers con audio ya hechos.',
   usage: '[--config]',
   example: [
     '#stch (respondiendo a un video)',
+    '#stch (respondiendo a un sticker con audio)',
     '#stch --config',
     '#stch --config channel https://whatsapp.com/channel/...',
     '#stch --config group -here',
@@ -153,15 +159,42 @@ export default {
       return m.reply('(>_<) Configura el canal primero: stch --config channel <enlace|jid>.')
     }
 
-    const direct = m.mtype === 'videoMessage' ? m : null
+    const direct = ['videoMessage', 'stickerMessage'].includes(m.mtype) ? m : null
     const source = m.quoted || direct
 
     if (!source) {
-      return m.reply('(>_<) Responde a un video con stch para publicarlo en el canal.')
+      return m.reply(
+        '(>_<) Responde a un video o a un sticker con audio para publicarlo en el canal.'
+      )
+    }
+
+    const stickerAudio = source?.msg?.audioMessage || source?.message?.stickerMessage?.audioMessage
+    if (stickerAudio) {
+      try {
+        const download = source?.download || m.download
+        const stickerBuffer = await download()
+        if (!stickerBuffer?.length) throw new Error('No pude descargar el sticker.')
+        const audioBuffer = await downloadStickerAudio(stickerAudio)
+        await m.reply('⏳ Publicando el sticker con audio en el canal...')
+        await sendPreparedAudioSticker({
+          sock,
+          chat: config.channel,
+          stickerBuffer,
+          audioBuffer,
+          seconds: Number(stickerAudio.seconds) || 5,
+          isAnimated: source?.msg?.isAnimated !== false,
+          ptt: Boolean(stickerAudio.ptt),
+        })
+        return m.reply('(＾▽＾) Sticker con audio publicado en el canal.')
+      } catch (error: any) {
+        return m.reply(
+          `(x_x) No pude publicar el sticker: ${error?.message || 'error desconocido'}`
+        )
+      }
     }
 
     if (!isVideo(source)) {
-      return m.reply('(>_<) El archivo citado no es un video.')
+      return m.reply('(>_<) El archivo citado no es un video ni un sticker con audio.')
     }
 
     let input = ''

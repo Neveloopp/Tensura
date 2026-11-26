@@ -191,7 +191,7 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `sticker` / `s` — imagen o video a sticker. Responde a un video con `#s -aud` para incluir el audio; si supera 25 s se recorta automáticamente.
 - `toimg` — sticker a PNG.
 - `setmeta` — cambia pack/autor (`#setmeta Mi Pack | Mi Nombre`); `delmeta` restaura.
-- `stch` — responde a un video y publica un sticker con audio en el canal; si supera el máximo configurado se recorta automáticamente. Lo pueden usar todos los miembros del grupo configurado; la configuración sigue siendo solo del Creador y se guarda por bot (`stch --config`: `channel`, `group`, `pack`, `author`, `max`, `on/off`, `reset`).
+- `stch` — responde a un video y publica un sticker con audio en el canal; si supera el máximo configurado se recorta automáticamente. También acepta responder a un sticker con audio ya creado y lo publica sin volver a convertirlo. Lo pueden usar todos los miembros del grupo configurado; la configuración sigue siendo solo del Creador y se guarda por bot (`stch --config`: `channel`, `group`, `pack`, `author`, `max`, `on/off`, `reset`).
 - `stch --config channel <enlace|jid>` — acepta enlaces de canal como `https://whatsapp.com/channel/...` y los convierte al JID correcto.
 - `stch --config group -here` — ejecutado dentro de un grupo, lo configura como grupo permitido sin tener que pegar el JID.
 - `texch` — envía un mensaje de texto al mismo canal (`#texch Hola` o responde a un texto). También lo pueden usar los miembros del grupo configurado.
@@ -200,6 +200,9 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `sync` — `status`, `pull`, `push [mensaje]`, `reload` o `restart`. Sin git descarga el ZIP del repo y copia solo los archivos cambiados.
 - `bots` — muestra cuántos sub bots están conectados y cuántos están registrados.
 - `antiprivado` — `on` u `off` bloquea los mensajes privados de otras personas. Se guarda por bot y el Creador siempre puede seguir usando el bot en privado.
+- `e` / `eval` — evalúa código JavaScript en el contexto del bot y devuelve el resultado tal cual. Solo Creador.
+- `r` — evalúa una expresión JavaScript y devuelve el resultado tal cual. Solo Creador.
+- `ver` — responde a una imagen, video, audio o sticker, incluidos los de una sola vista, para reenviarlo.
 
 El estado de `antiprivado` es independiente en el bot principal y en cada sub bot (`database/settings.json`). Al activarlo, los mensajes privados de usuarios que no sean el Creador o el responsable del sub bot se ignoran.
 
