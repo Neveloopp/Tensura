@@ -4,7 +4,12 @@
  */
 import fs from 'fs'
 import { sendAudioSticker } from '../../core/audioSticker.ts'
-import { channelAccessError, getChannelConfig, parseDestination } from '../../core/channel.ts'
+import {
+  channelAccessError,
+  getChannelConfig,
+  parseDestination,
+  resolveChannelDestination,
+} from '../../core/channel.ts'
 import { probeDuration } from '../../core/exif.ts'
 import { updateSettings } from '../../core/system/database.ts'
 import { normalizeJid, removeFile, tempFile } from '../../core/utils.ts'
@@ -21,8 +26,8 @@ function helpText(prefix: string, config: ReturnType<typeof getChannelConfig>) {
     `│ ➛ Máximo: ${config.maxSeconds}s`,
     '│',
     '│ Para cambiar:',
-    `│ ${p}stch --config channel 120363...@newsletter`,
-    `│ ${p}stch --config group 120363...@g.us`,
+    `│ ${p}stch --config channel https://whatsapp.com/channel/...`,
+    `│ ${p}stch --config group -here (dentro del grupo)`,
     `│ ${p}stch --config pack Mi Pack`,
     `│ ${p}stch --config author Mi Nombre`,
     `│ ${p}stch --config max 25`,
@@ -51,7 +56,8 @@ export default {
   example: [
     '#stch (respondiendo a un video)',
     '#stch --config',
-    '#stch --config channel 120363...@newsletter',
+    '#stch --config channel https://whatsapp.com/channel/...',
+    '#stch --config group -here',
   ],
   async run({ sock, m, args, prefix, settings, isOwner }: any) {
     const botId = normalizeJid(settings?.id || sock?.user?.id || '')
@@ -81,19 +87,33 @@ export default {
       }
 
       if (['channel', 'canal'].includes(key)) {
-        const channel = parseDestination(value, '@newsletter')
+        let channel = ''
+        try {
+          channel = await resolveChannelDestination(sock, value)
+        } catch (error: any) {
+          return m.reply(`(>_<) ${error?.message || 'No pude resolver el enlace del canal.'}`)
+        }
         if (!channel) return m.reply('(>_<) Indica el JID o enlace del canal.')
         updateSettings(botId, 'stch', { ...config, channel })
         return m.reply(`(＾▽＾) Canal configurado: ${channel}`)
       }
 
       if (['group', 'grupo'].includes(key)) {
-        if (!value || ['off', 'none', 'ninguno', 'clear'].includes(value.toLowerCase())) {
+        const normalizedValue = value.toLowerCase()
+        if (!value || ['off', 'none', 'ninguno', 'clear'].includes(normalizedValue)) {
           updateSettings(botId, 'stch', { ...config, group: '' })
           return m.reply('(＾▽＾) Grupo eliminado. Solo el Creador podrá usar STCH hasta configurar uno.')
         }
+        if (['-here', 'here', 'aqui', 'aquí'].includes(normalizedValue)) {
+          if (!m.isGroup) {
+            return m.reply('(>_<) Usa -here dentro del grupo que quieres permitir.')
+          }
+          const group = normalizeJid(m.chat)
+          updateSettings(botId, 'stch', { ...config, group })
+          return m.reply(`(＾▽＾) Grupo permitido: ${group}`)
+        }
         const group = parseDestination(value, '@g.us')
-        if (!group) return m.reply('(>_<) Indica el JID del grupo.')
+        if (!group) return m.reply('(>_<) Indica el JID del grupo o usa -here.')
         updateSettings(botId, 'stch', { ...config, group })
         return m.reply(`(＾▽＾) Grupo permitido: ${group}`)
       }
@@ -130,7 +150,7 @@ export default {
     if (accessError) return m.reply(accessError)
 
     if (!config.channel) {
-      return m.reply('(>_<) Configura el canal primero: stch --config channel <jid>.')
+      return m.reply('(>_<) Configura el canal primero: stch --config channel <enlace|jid>.')
     }
 
     const direct = m.mtype === 'videoMessage' ? m : null

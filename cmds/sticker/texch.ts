@@ -13,14 +13,14 @@ export default {
   example: [
     '#texch Hola a todos',
     '#texch (respondiendo a un mensaje)',
-    '#stch --config channel 120363...@newsletter',
+    '#stch --config channel https://whatsapp.com/channel/...',
   ],
   async run({ sock, m, args, settings, isOwner }: any) {
     const action = String(args[0] || '').toLowerCase()
     if (['--config', '-c', 'config'].includes(action)) {
       if (!isOwner) return m.reply('(>_<) Solo mi Creador puede configurar el canal.')
       return m.reply(
-        '(＾▽＾) TEXCH usa el mismo canal y grupo que STCH.\nConfigura con: stch --config channel <jid> | group <jid>'
+        '(＾▽＾) TEXCH usa el mismo canal y grupo que STCH.\nConfigura con: stch --config channel <enlace|jid> | group -here'
       )
     }
 
@@ -30,7 +30,7 @@ export default {
     if (accessError) return m.reply(accessError)
 
     if (!config.channel) {
-      return m.reply('(>_<) Configura el canal primero: stch --config channel <jid>.')
+      return m.reply('(>_<) Configura el canal primero: stch --config channel <enlace|jid>.')
     }
 
     const text = args.join(' ').trim() || String(m.quoted?.text || '').trim()
