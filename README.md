@@ -25,7 +25,7 @@ Versión recortada de **Viko** enfocada en tres cosas: **grupos**, **descargas**
 
 - Node.js 20 o superior.
 - `ffmpeg` y `ffprobe` en el PATH (obligatorios para stickers de video y `-aud`).
-- Fork `@whiskeysockets/baileys` de Tensura (se instala desde el release; no hace falta Git).
+- Fork `@whiskeysockets/baileys` de Tensura incluido en `vendor/` (se instala sin acceso a URLs remotas).
 - `sharp` es opcional (`optionalDependencies`): si no carga, Tensura usa ffmpeg para las imágenes.
 
 En Termux:
@@ -317,7 +317,7 @@ Puedes editarlos con cualquier editor de texto. Los cambios se mantienen en memo
 - Las descargas usan `fetch` nativo para evitar bloqueos de Cloudflare en los enlaces de Raylais.
 - Si cambias un comando, el loader lo recarga sin reiniciar el bot. Los cambios de núcleo los aplica `sync` o el watcher reiniciando el proceso.
 - Los scripts usan `node` directamente (`node --import tsx`, `node node_modules/typescript/bin/tsc`), así no dependen de `/usr/bin/env` y funcionan en Termux.
-- Usa el fork `Neveloopp/baileys-tensura` (`v7.0.0-rc14-tensura.1`), instalado desde un release sin compilar.
+- Usa el fork `Neveloopp/baileys-tensura` (`v7.0.0-rc14-tensura.1`) desde el tarball incluido en `vendor/`; no requiere compilar ni descargar URLs externas.
 - El benchmark local está en `scripts/benchmark.ts`; simula 25 ms por llamada de WhatsApp y no necesita sesión real.
 
 ## Rendimiento
@@ -341,7 +341,7 @@ Estos números son del benchmark local de comandos; no miden la red real ni el c
 
 ## Baileys del fork
 
-La dependencia apunta al release `v7.0.0-rc14-tensura.1` de [`Neveloopp/baileys-tensura`](https://github.com/Neveloopp/baileys-tensura). Incluye:
+La dependencia apunta al tarball `vendor/baileys-7.0.0-rc14-tensura.1.tgz`, generado desde el release `v7.0.0-rc14-tensura.1` de [`Neveloopp/baileys-tensura`](https://github.com/Neveloopp/baileys-tensura). Se incluye en el repo para que `npm install` funcione en paneles que bloquean dependencias por URL remota, como Pterodactyl. Incluye:
 
 - Timeouts acotados para conexión, consultas, descargas y subidas.
 - Keepalive efectivo de 20 s (máximo 30 s) sin solapar pings.

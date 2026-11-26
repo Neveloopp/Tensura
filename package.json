@@ -25,7 +25,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "https://github.com/Neveloopp/baileys-tensura/releases/download/v7.0.0-rc14-tensura.1/baileys-7.0.0-rc14-tensura.1.tgz",
+    "@whiskeysockets/baileys": "file:vendor/baileys-7.0.0-rc14-tensura.1.tgz",
     "axios": "^1.7.9",
     "boxen": "^8.0.1",
     "cfonts": "^3.3.0",
