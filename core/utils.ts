@@ -10,12 +10,14 @@ import botConfig from '../settings.ts'
 
 const groupMetaCache = new Map<string, { data: any; ts: number }>()
 const groupMetaPending = new Map<string, Promise<any>>()
+const groupMetaVersion = new Map<string, number>()
 const lidCache = new Map<string, { data: string; ts: number }>()
 const lidPending = new Map<string, Promise<string>>()
 const META_TTL = 5 * 60 * 1000
 const LID_TTL = 24 * 60 * 60 * 1000
 const META_TIMEOUT = 8000
 const LID_TIMEOUT = 3000
+const botLidCache = new Map<string, string>()
 
 export const TMP_DIR = path.resolve('core/system/tmp')
 
@@ -233,6 +235,7 @@ export async function getCachedGroupMeta(sock: any, jid: string) {
   const pending = groupMetaPending.get(jid)
   if (pending) return pending
 
+  const version = groupMetaVersion.get(jid) || 0
   let request: Promise<any>
   try {
     request = Promise.resolve(sock.groupMetadata(jid))
@@ -242,37 +245,125 @@ export async function getCachedGroupMeta(sock: any, jid: string) {
 
   const task = withTimeout(request, META_TIMEOUT, null)
     .then(data => {
-      if (data) groupMetaCache.set(jid, { data, ts: Date.now() })
+      if (data && (groupMetaVersion.get(jid) || 0) === version) {
+        groupMetaCache.set(jid, { data, ts: Date.now() })
+      }
       return data
     })
     .catch(() => null)
-    .finally(() => groupMetaPending.delete(jid))
+    .finally(() => {
+      if (groupMetaPending.get(jid) === task) groupMetaPending.delete(jid)
+    })
 
   groupMetaPending.set(jid, task)
   return task
 }
 
-function participantIds(participant: any): string[] {
-  return [participant?.id, participant?.jid, participant?.phoneNumber, participant?.lid]
-    .filter(Boolean)
-    .map((value: any) => normalizeJid(value))
+function uniqueJids(values: any[]): string[] {
+  return [...new Set(values.map(normalizeJid).filter(Boolean))]
+}
+
+export function participantJids(participant: any): string[] {
+  return uniqueJids([participant?.id, participant?.jid, participant?.phoneNumber, participant?.lid])
+}
+
+export function jidsMatch(a: any, b: any): boolean {
+  const left = normalizeJid(a)
+  const right = normalizeJid(b)
+  if (!left || !right) return false
+  if (left === right) return true
+  const leftDigits = jidNumber(left)
+  return !!leftDigits && leftDigits === jidNumber(right)
+}
+
+export function findGroupParticipant(meta: any, jid: any): any {
+  const targets = (Array.isArray(jid) ? jid : [jid]).map(normalizeJid).filter(Boolean)
+  if (!targets.length) return null
+  for (const participant of meta?.participants || []) {
+    const ids = participantJids(participant)
+    if (targets.some(target => ids.some(id => jidsMatch(target, id)))) return participant
+  }
+  return null
+}
+
+function participantIsAdmin(participant: any): boolean {
+  return participant?.admin === 'admin' || participant?.admin === 'superadmin'
+}
+
+export function invalidateGroupMeta(jid: string) {
+  const target = normalizeJid(jid)
+  if (!target) return
+  groupMetaCache.delete(target)
+  groupMetaPending.delete(target)
+  groupMetaVersion.set(target, (groupMetaVersion.get(target) || 0) + 1)
+}
+
+export function botIdentityJids(sock: any): string[] {
+  const me = sock?.user || {}
+  const credsMe = sock?.authState?.creds?.me || {}
+  return uniqueJids([
+    me?.id,
+    me?.phoneNumber,
+    me?.lid,
+    credsMe?.id,
+    credsMe?.phoneNumber,
+    credsMe?.lid,
+  ])
+}
+
+async function botIdsWithLid(sock: any): Promise<string[]> {
+  const ids = botIdentityJids(sock)
+  if (ids.some(id => id.endsWith('@lid'))) return ids
+
+  const pn = ids.find(id => id.endsWith('@s.whatsapp.net'))
+  if (!pn) return ids
+
+  const cached = botLidCache.get(pn)
+  if (cached) return uniqueJids([...ids, cached])
+
+  try {
+    const mapping = sock?.signalRepository?.lidMapping
+    if (typeof mapping?.getLIDForPN !== 'function') return ids
+    const lid = normalizeJid(
+      await withTimeout(Promise.resolve(mapping.getLIDForPN(pn)), LID_TIMEOUT, '')
+    )
+    if (!lid.endsWith('@lid')) return ids
+    botLidCache.set(pn, lid)
+    return uniqueJids([...ids, lid])
+  } catch {
+    return ids
+  }
+}
+
+function metaHasAdmin(meta: any, jids: string[]): boolean {
+  if (!meta?.participants?.length || !jids.length) return false
+  return meta.participants.some((participant: any) => {
+    if (!participantIsAdmin(participant)) return false
+    const ids = participantJids(participant)
+    return jids.some(jid => ids.some(id => jidsMatch(jid, id)))
+  })
 }
 
 export async function isJidAdminInGroup(sock: any, groupJid: string, jid: string, force = false): Promise<boolean> {
   if (!isGroupJid(groupJid) || !jid) return false
-  if (force) groupMetaCache.delete(groupJid)
+  if (force) invalidateGroupMeta(groupJid)
+  const meta = await getCachedGroupMeta(sock, groupJid)
+  const participant = findGroupParticipant(meta, jid)
+  return participantIsAdmin(participant)
+}
+
+export async function isBotAdminInGroup(sock: any, groupJid: string, force = false, lookupLid = true): Promise<boolean> {
+  if (!isGroupJid(groupJid)) return false
+  if (force) invalidateGroupMeta(groupJid)
   const meta = await getCachedGroupMeta(sock, groupJid)
   if (!meta?.participants) return false
-  const target = normalizeJid(jid)
-  const digits = jidNumber(target)
 
-  for (const participant of meta.participants) {
-    const ids = participantIds(participant)
-    const matches = ids.includes(target) || (digits && ids.some(id => jidNumber(id) === digits))
-    if (!matches) continue
-    return participant.admin === 'admin' || participant.admin === 'superadmin'
-  }
-  return false
+  const ids = botIdentityJids(sock)
+  if (metaHasAdmin(meta, ids)) return true
+  if (!lookupLid) return false
+
+  const expanded = await botIdsWithLid(sock)
+  return expanded.length !== ids.length && metaHasAdmin(meta, expanded)
 }
 
 export async function resolveLidToRealJid(jid: string, sock: any, groupJid = ''): Promise<string> {

@@ -16,7 +16,7 @@ import groupEvents from '../../cmds/events.ts'
 import { patchAudioStickerProtocol } from '../audioSticker.ts'
 import { smsg } from '../message.ts'
 import { rememberAudioSticker } from '../messageCache.ts'
-import { isGroupJid, jidNumber, normalizeJid } from '../utils.ts'
+import { invalidateGroupMeta, isGroupJid, jidNumber, normalizeJid } from '../utils.ts'
 import { mainBotIsInGroup } from './mainGroups.ts'
 import {
   normalizeSubBotId,
@@ -493,6 +493,7 @@ export class SubBotManager {
     sock.ev.on('group-participants.update', async (update: any) => {
       if (!entry.paired || entry.sock !== sock || entry.stopRequested) return
       const groupJid = normalizeJid(update?.id)
+      invalidateGroupMeta(groupJid)
       if (!isGroupJid(groupJid) || (await mainBotIsInGroup(groupJid))) return
       try {
         await groupEvents(sock, update)

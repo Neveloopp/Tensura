@@ -35,7 +35,7 @@ import { setBeforeRestart, startProjectWatcher } from './core/system/sync.ts'
 import { subBotManager } from './core/subbots/manager.ts'
 import { invalidateMainGroups, rememberMainGroup, syncMainGroups } from './core/subbots/mainGroups.ts'
 import { startSubBotWebServer } from './core/web/server.ts'
-import { normalizeJid } from './core/utils.ts'
+import { invalidateGroupMeta, normalizeJid } from './core/utils.ts'
 import { installConsoleFilter } from './core/system/consoleFilter.ts'
 
 let useCode = false
@@ -358,6 +358,7 @@ async function startBot() {
     })
 
     sock.ev.on('group-participants.update', async (update: any) => {
+      invalidateGroupMeta(update?.id)
       invalidateMainGroups()
       void syncMainGroups(true)
       try {
@@ -372,7 +373,10 @@ async function startBot() {
       void syncMainGroups(true)
     })
 
-    sock.ev.on('groups.update', () => {
+    sock.ev.on('groups.update', (updates: any) => {
+      for (const update of Array.isArray(updates) ? updates : [updates]) {
+        invalidateGroupMeta(update?.id)
+      }
       invalidateMainGroups()
       void syncMainGroups(true)
     })

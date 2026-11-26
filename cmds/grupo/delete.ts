@@ -1,8 +1,8 @@
 /*
  * Borrar el mensaje citado.
  */
-import { botJid } from '../../core/group.ts'
-import { isJidAdminInGroup } from '../../core/utils.ts'
+import { isBotIdentity } from '../../core/group.ts'
+import { isBotAdminInGroup } from '../../core/utils.ts'
 
 export default {
   command: ['delete', 'del', 'borrar'],
@@ -17,11 +17,11 @@ export default {
     }
 
     const sender = m.quoted.sender
-    const ownMessage = sender === botJid(sock) || sender === m.sender
+    const ownMessage = isBotIdentity(sock, sender) || sender === m.sender
 
     if (!ownMessage) {
       if (!isAdmin) return m.reply('ꕥ Solo un administrador puede borrar mensajes de otros.')
-      const botIsAdmin = await isJidAdminInGroup(sock, m.chat, botJid(sock)).catch(() => false)
+      const botIsAdmin = await isBotAdminInGroup(sock, m.chat).catch(() => false)
       if (!botIsAdmin) return m.reply('ꕥ Necesito ser administrador para borrar ese mensaje.')
     }
 

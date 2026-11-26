@@ -1,8 +1,8 @@
 /*
  * Expulsar miembros.
  */
-import { getTarget, botJid } from '../../core/group.ts'
-import { isJidAdminInGroup, jidNumber } from '../../core/utils.ts'
+import { getTarget, isBotIdentity, removeGroupParticipant } from '../../core/group.ts'
+import { isJidAdminInGroup, jidNumber, jidsMatch, normalizeJid } from '../../core/utils.ts'
 
 export default {
   command: ['kick', 'expulsar', 'ban'],
@@ -18,15 +18,32 @@ export default {
     if (!target?.jid) {
       return m.reply('(>_<) Menciona, responde o escribe el número del miembro a expulsar.')
     }
-    if (target.jid === botJid(sock)) return m.reply('(x_x) No puedo expulsarme a mí mismo.')
-    if (target.jid === m.sender) return m.reply('(x_x) No puedes expulsarte a ti mismo.')
 
-    const targetIsAdmin = await isJidAdminInGroup(sock, m.chat, target.jid).catch(() => false)
+    const targetIds = [...new Set([target.jid, ...(target.jids || [])].map(normalizeJid).filter(Boolean))]
+    if (targetIds.some(jid => isBotIdentity(sock, jid))) {
+      return m.reply('(x_x) No puedo expulsarme a mí mismo.')
+    }
+    if (targetIds.some(jid => jidsMatch(jid, m.sender))) {
+      return m.reply('(x_x) No puedes expulsarte a ti mismo.')
+    }
+
+    let targetIsAdmin = false
+    for (const jid of targetIds) {
+      targetIsAdmin = await isJidAdminInGroup(sock, m.chat, jid).catch(() => false)
+      if (targetIsAdmin) break
+    }
     if (targetIsAdmin && !isOwner) {
       return m.reply('(x_x) No puedo expulsar a un administrador del grupo.')
     }
 
-    await sock.groupParticipantsUpdate(m.chat, [target.jid], 'remove')
+    const result = await removeGroupParticipant(sock, m.chat, target)
+    if (!result.ok) {
+      return m.reply(
+        `(x_x) No pude expulsar a @${jidNumber(target.jid)}.\n${result.error}` +
+          '\nVerifica que siga siendo administrador y que el miembro esté en el grupo.'
+      )
+    }
+
     return m.reply(`(＾▽＾) @${jidNumber(target.jid)} fue expulsado del grupo.`)
   },
 }

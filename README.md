@@ -165,10 +165,10 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `goodbye` — despedida (`on`, `off`, `set`, `reset`).
 - `rules` — reglas (`set`, `del`).
 - `antilink` — bloqueo de enlaces (`on`, `off`).
-- `kick` — expulsar miembro.
+- `kick` — expulsar miembro (reintenta con LID/PN y avisa si WhatsApp rechaza).
 - `promote` / `demote` — dar o quitar administración.
 - `warn` / `warnings` / `unwarn` / `warnlimit` — advertencias.
-- `invite` — enlace de invitación (`reset`).
+- `invite` — enlace de invitación (`reset`); detecta al bot como admin por PN o LID.
 - `approve` / `reject` / `pending` — solicitudes de entrada.
 - `close` / `open` — cerrar o abrir el grupo.
 - `schedule` — horario automático (`on`, `off`, `set 22:00 08:00`, `timezone`).

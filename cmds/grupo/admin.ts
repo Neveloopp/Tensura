@@ -1,7 +1,7 @@
 /*
  * Dar o quitar administración.
  */
-import { getTarget } from '../../core/group.ts'
+import { getTarget, updateGroupParticipant } from '../../core/group.ts'
 import { jidNumber } from '../../core/utils.ts'
 
 export default {
@@ -23,7 +23,14 @@ export default {
     const label = action === 'promote' ? 'administrador' : 'miembro'
     const emoji = action === 'promote' ? '👑' : '👤'
 
-    await sock.groupParticipantsUpdate(m.chat, [target.jid], action)
+    const result = await updateGroupParticipant(sock, m.chat, target, action)
+    if (!result.ok) {
+      return m.reply(
+        `(x_x) No pude cambiar el rango de @${jidNumber(target.jid)}.\n${result.error}` +
+          '\nVerifica que siga siendo administrador y que el miembro esté en el grupo.'
+      )
+    }
+
     return m.reply(`${emoji} @${jidNumber(target.jid)} ahora es ${label}.`)
   },
 }

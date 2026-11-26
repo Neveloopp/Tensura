@@ -16,14 +16,18 @@ import {
   updateSettings,
 } from './core/system/database.ts'
 import {
+  botIdentityJids,
   getCachedGroupMeta,
+  isBotAdminInGroup,
   isJidAdminInGroup,
   isLink,
   jidNumber,
   normalizeJid,
 } from './core/utils.ts'
-import { addWarning } from './core/group.ts'
+import { addWarning, botJid } from './core/group.ts'
 import { downloadTasks, normalTasks, stickerTasks } from './core/system/limiter.ts'
+
+const botAdminRefresh = new Map<string, number>()
 
 const FAST_COMMANDS = new Set([
   'ping',
@@ -48,7 +52,7 @@ function permissionText(type: string, command: string) {
   return messages[type] || botConfig.messages.error
 }
 
-async function enforceAntiLink(sock: any, m: any, botId: string) {
+async function enforceAntiLink(sock: any, m: any) {
   if (!m.isGroup) return
   const chat = getChat(m.chat)
   if (!chat.moderation?.antiLinks) return
@@ -57,7 +61,7 @@ async function enforceAntiLink(sock: any, m: any, botId: string) {
   const senderIsAdmin = await isJidAdminInGroup(sock, m.chat, m.sender).catch(() => false)
   if (senderIsAdmin) return
 
-  const botIsAdmin = await isJidAdminInGroup(sock, m.chat, botId).catch(() => false)
+  const botIsAdmin = await isBotAdminInGroup(sock, m.chat).catch(() => false)
   if (!botIsAdmin) return
 
   await sock.sendMessage(m.chat, { delete: m.key }).catch(() => null)
@@ -75,7 +79,7 @@ async function enforceAntiLink(sock: any, m: any, botId: string) {
 export default async function handler(sock: any, m: any) {
   if (!m?.message) return
   m.__start = Date.now()
-  const botId = normalizeJid(sock?.user?.id || '')
+  const botId = normalizeJid(botJid(sock))
   if (!botId) return
 
   const botSettings = getSettings(botId)
@@ -91,7 +95,7 @@ export default async function handler(sock: any, m: any) {
 
   const subbot = sock?.__subbot
   const ownerNumbers = new Set(
-    [...botConfig.owner, subbot?.managerPhone, subbot?.botId]
+    [...botConfig.owner, subbot?.managerPhone, subbot?.botId, ...botIdentityJids(sock)]
       .map(number => jidNumber(number))
       .filter(Boolean)
   )
@@ -111,7 +115,7 @@ export default async function handler(sock: any, m: any) {
   const cmdData = global.comandos.get(command)
 
   if (!prefix && !noPrefixHelp) {
-    await enforceAntiLink(sock, m, botId)
+    await enforceAntiLink(sock, m)
     return
   }
 
@@ -135,9 +139,16 @@ export default async function handler(sock: any, m: any) {
   const isAdmin = m.isGroup
     ? await isJidAdminInGroup(sock, m.chat, m.sender).catch(() => false)
     : false
-  const isBotAdmin = m.isGroup
-    ? await isJidAdminInGroup(sock, m.chat, botId).catch(() => false)
+  let isBotAdmin = m.isGroup
+    ? await isBotAdminInGroup(sock, m.chat, false, Boolean(cmdData.botAdmin)).catch(() => false)
     : false
+  if (m.isGroup && cmdData.botAdmin && !isBotAdmin) {
+    const now = Date.now()
+    if (now - (botAdminRefresh.get(m.chat) || 0) > 15000) {
+      botAdminRefresh.set(m.chat, now)
+      isBotAdmin = await isBotAdminInGroup(sock, m.chat, true).catch(() => false)
+    }
+  }
   const canAdmin = isAdmin || isOwner
 
   if (cmdData.groupOnly && !m.isGroup) {
