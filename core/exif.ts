@@ -113,6 +113,34 @@ export async function webpToPng(data: Buffer): Promise<Buffer> {
   }
 }
 
+const STICKER_TARGET_BYTES = 880 * 1024
+
+async function encodeAnimatedSticker(
+  inputPath: string,
+  outputPath: string,
+  seconds: number,
+  fps: number,
+  quality: number,
+  colorArgs: string[]
+): Promise<Buffer> {
+  await run('ffmpeg', [
+    '-y',
+    ...colorArgs,
+    '-i', inputPath,
+    '-t', String(seconds),
+    '-vf', `fps=${fps},scale=512:512:flags=lanczos:force_original_aspect_ratio=increase,crop=512:512,setsar=1,format=rgba`,
+    '-c:v', 'libwebp',
+    '-lossless', '0',
+    '-compression_level', '6',
+    '-preset', 'picture',
+    '-q:v', String(quality),
+    '-loop', '0',
+    '-an',
+    outputPath,
+  ])
+  return fs.readFileSync(outputPath)
+}
+
 export async function videoToWebp(data: Buffer, maxSeconds = 6): Promise<Buffer> {
   ensureTmpDir()
   const input = tempFile('video-input', '.mp4')
@@ -120,22 +148,24 @@ export async function videoToWebp(data: Buffer, maxSeconds = 6): Promise<Buffer>
   fs.writeFileSync(input, data)
 
   try {
+    const seconds = Math.max(1, Math.min(maxSeconds, 20))
     const colorArgs = await videoColorFixArgs(input)
-    await run('ffmpeg', [
-      '-y',
-      ...colorArgs,
-      '-i', input,
-      '-t', String(Math.max(1, Math.min(maxSeconds, 20))),
-      '-vf', 'fps=12,scale=512:512:force_original_aspect_ratio=increase,crop=512:512,setsar=1,format=rgba',
-      '-vcodec', 'libwebp',
-      '-lossless', '0',
-      '-compression_level', '2',
-      '-q:v', '55',
-      '-loop', '0',
-      '-an',
-      output,
-    ])
-    return fs.readFileSync(output)
+    const attempts: [number, number][] = [
+      [20, 50],
+      [20, 42],
+      [18, 36],
+      [15, 30],
+      [12, 24],
+      [10, 18],
+      [8, 14],
+    ]
+    let webp: Buffer | null = null
+    for (const [fps, quality] of attempts) {
+      webp = await encodeAnimatedSticker(input, output, seconds, fps, quality, colorArgs)
+      if (webp.length <= STICKER_TARGET_BYTES) break
+    }
+    if (!webp?.length) throw new Error('FFmpeg no generó el sticker animado.')
+    return webp
   } finally {
     fs.rmSync(input, { force: true })
     fs.rmSync(output, { force: true })
@@ -325,30 +355,21 @@ export async function convertVideoForAudioSticker(
 ): Promise<Buffer> {
   let webp: Buffer | null = null
   const duration = knownDuration ?? (await probeDuration(inputPath).catch(() => maxSeconds))
+  const seconds = Math.max(1, Math.min(maxSeconds, duration))
   const attempts: [number, number][] =
-    duration > 12
-      ? [[8, 45], [6, 36], [5, 24], [4, 16]]
-      : [[10, 50], [8, 36], [6, 24], [5, 16]]
+    seconds <= 8
+      ? [[20, 52], [20, 44], [18, 38], [15, 32], [12, 26], [10, 20], [8, 14]]
+      : seconds <= 12
+        ? [[20, 52], [18, 44], [18, 36], [15, 30], [12, 24], [10, 18], [8, 14]]
+        : seconds <= 18
+          ? [[15, 42], [15, 34], [12, 30], [12, 22], [10, 16], [8, 12], [6, 8]]
+          : [[12, 28], [12, 20], [10, 16], [10, 10], [8, 10], [6, 8], [4, 6]]
 
   const colorArgs = await videoColorFixArgs(inputPath)
 
   for (const [fps, quality] of attempts) {
-    await run('ffmpeg', [
-      '-y',
-      ...colorArgs,
-      '-i', inputPath,
-      '-t', String(maxSeconds),
-      '-vf', `fps=${fps},scale=512:512:force_original_aspect_ratio=increase,crop=512:512,setsar=1,format=rgba`,
-      '-c:v', 'libwebp',
-      '-lossless', '0',
-      '-compression_level', '2',
-      '-q:v', String(quality),
-      '-loop', '0',
-      '-an',
-      outputPath,
-    ])
-    webp = fs.readFileSync(outputPath)
-    if (webp.length <= 880 * 1024) break
+    webp = await encodeAnimatedSticker(inputPath, outputPath, seconds, fps, quality, colorArgs)
+    if (webp.length <= STICKER_TARGET_BYTES) break
   }
 
   if (!webp?.length) throw new Error('FFmpeg no generó el sticker animado.')
@@ -428,20 +449,8 @@ export async function extractAudioMp3(
 }
 
 export async function convertVideoToStickerFile(inputPath: string, outputPath: string, maxSeconds = 6) {
+  const duration = await probeDuration(inputPath).catch(() => maxSeconds)
+  const seconds = Math.max(1, Math.min(maxSeconds, duration))
   const colorArgs = await videoColorFixArgs(inputPath)
-  await run('ffmpeg', [
-    '-y',
-    ...colorArgs,
-    '-i', inputPath,
-    '-t', String(maxSeconds),
-    '-vf', 'fps=12,scale=512:512:force_original_aspect_ratio=increase,crop=512:512,setsar=1,format=rgba',
-    '-vcodec', 'libwebp',
-    '-lossless', '0',
-    '-compression_level', '2',
-    '-q:v', '55',
-    '-loop', '0',
-    '-an',
-    outputPath,
-  ])
-  return fs.readFileSync(outputPath)
+  return encodeAnimatedSticker(inputPath, outputPath, seconds, 20, 50, colorArgs)
 }
