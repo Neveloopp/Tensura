@@ -59,7 +59,7 @@ export default {
       }
 
       if (withAudio) {
-        const duration = await probeDuration(input)
+        const duration = await probeDuration(input, botConfig.sticker.audioMaxSeconds)
         output = tempFile('sticker-output', '.webp')
         audioOutput = tempFile('sticker-audio', '.ogg')
 

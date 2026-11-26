@@ -211,16 +211,131 @@ async function videoColorFixArgs(inputPath: string): Promise<string[]> {
   return []
 }
 
-export async function probeDuration(inputPath: string): Promise<number> {
-  const { stdout } = await run('ffprobe', [
-    '-v', 'error',
-    '-show_entries', 'format=duration',
-    '-of', 'default=noprint_wrappers=1:nokey=1',
-    inputPath,
-  ])
-  const duration = Number(String(stdout).trim())
-  if (!Number.isFinite(duration) || duration <= 0) throw new Error('No pude leer la duración del video.')
-  return duration
+function durationValue(value: any): number {
+  const text = String(value ?? '').trim()
+  if (!text || /^(n\/a|nan|inf|-inf)$/i.test(text)) return 0
+  const numeric = Number(text)
+  if (Number.isFinite(numeric) && numeric > 0) return numeric
+  const clock = text.match(/^(\d+):(\d{2}):(\d{2}(?:\.\d+)?)$/)
+  if (!clock) return 0
+  return Number(clock[1]) * 3600 + Number(clock[2]) * 60 + Number(clock[3])
+}
+
+function streamDuration(stream: any): number {
+  const direct = durationValue(stream?.duration)
+  if (direct > 0) return direct
+
+  const durationTs = Number(stream?.duration_ts)
+  const [baseNum, baseDen] = String(stream?.time_base || '').split('/').map(Number)
+  if (
+    Number.isFinite(durationTs) &&
+    durationTs > 0 &&
+    Number.isFinite(baseNum) &&
+    baseNum > 0 &&
+    Number.isFinite(baseDen) &&
+    baseDen > 0
+  ) {
+    return (durationTs * baseNum) / baseDen
+  }
+
+  const frames = Number(stream?.nb_frames)
+  const [rateNum, rateDen] = String(stream?.avg_frame_rate || '').split('/').map(Number)
+  if (
+    Number.isFinite(frames) &&
+    frames > 0 &&
+    Number.isFinite(rateNum) &&
+    rateNum > 0 &&
+    Number.isFinite(rateDen) &&
+    rateDen > 0
+  ) {
+    return (frames * rateDen) / rateNum
+  }
+  return 0
+}
+
+async function probeDecodedDuration(inputPath: string): Promise<number> {
+  try {
+    const { stdout } = await run('ffmpeg', [
+      '-hide_banner',
+      '-loglevel', 'error',
+      '-i', inputPath,
+      '-map', '0:v:0?',
+      '-f', 'null',
+      '-progress', 'pipe:1',
+      '-',
+    ])
+    let duration = 0
+    for (const line of String(stdout).split(/\r?\n/)) {
+      const micros = line.match(/^out_time_(?:us|ms)=(\d+)$/)
+      if (micros) duration = Math.max(duration, Number(micros[1]) / 1e6)
+      const clock = line.match(/^out_time=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)$/)
+      if (clock) {
+        duration = Math.max(
+          duration,
+          Number(clock[1]) * 3600 + Number(clock[2]) * 60 + Number(clock[3])
+        )
+      }
+    }
+    return duration
+  } catch {
+    return 0
+  }
+}
+
+async function probePacketDuration(inputPath: string): Promise<number> {
+  try {
+    const { stdout } = await run('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'packet=pts_time,duration_time',
+      '-of', 'csv=p=0',
+      inputPath,
+    ])
+    let start = Infinity
+    let end = 0
+    for (const line of String(stdout).split(/\r?\n/)) {
+      const [ptsRaw, durationRaw] = line.split(',')
+      const pts = Number(ptsRaw)
+      if (!Number.isFinite(pts)) continue
+      const packetDuration = Number(durationRaw)
+      const packetEnd = pts + (Number.isFinite(packetDuration) && packetDuration > 0 ? packetDuration : 0)
+      if (pts < start) start = pts
+      if (packetEnd > end) end = packetEnd
+    }
+    return end > 0 && Number.isFinite(start) ? Math.max(0, end - start) : 0
+  } catch {
+    return 0
+  }
+}
+
+export async function probeDuration(inputPath: string, fallback = 0): Promise<number> {
+  try {
+    const { stdout } = await run('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration:format_tags=DURATION:stream=duration,duration_ts,time_base,nb_frames,avg_frame_rate',
+      '-of', 'json',
+      inputPath,
+    ])
+    const data = JSON.parse(stdout)
+    const tags = data?.format?.tags && typeof data.format.tags === 'object' ? data.format.tags : {}
+    const tagDuration = Object.entries(tags).find(([key]) => key.toLowerCase() === 'duration')?.[1]
+    const candidates = [
+      durationValue(data?.format?.duration),
+      durationValue(tagDuration),
+      ...(Array.isArray(data?.streams) ? data.streams.map(streamDuration) : []),
+    ]
+    const duration = candidates.find(value => value > 0) || 0
+    if (duration > 0) return duration
+  } catch {}
+
+  const packetDuration = await probePacketDuration(inputPath)
+  if (packetDuration > 0) return packetDuration
+
+  const decodedDuration = await probeDecodedDuration(inputPath)
+  if (decodedDuration > 0) return decodedDuration
+
+  const safeFallback = Number(fallback)
+  if (Number.isFinite(safeFallback) && safeFallback > 0) return safeFallback
+  throw new Error('No pude leer la duración del video.')
 }
 
 function buildExif(metadata: StickerMetadata): Buffer {
@@ -354,7 +469,7 @@ export async function convertVideoForAudioSticker(
   knownDuration?: number
 ): Promise<Buffer> {
   let webp: Buffer | null = null
-  const duration = knownDuration ?? (await probeDuration(inputPath).catch(() => maxSeconds))
+  const duration = knownDuration ?? (await probeDuration(inputPath, maxSeconds))
   const seconds = Math.max(1, Math.min(maxSeconds, duration))
   const attempts: [number, number][] =
     seconds <= 8
@@ -389,7 +504,7 @@ export async function extractAudioOpus(
   maxSeconds = 25,
   knownDuration?: number
 ): Promise<{ oggBuffer: Buffer; seconds: number }> {
-  const duration = knownDuration ?? (await probeDuration(inputPath))
+  const duration = knownDuration ?? (await probeDuration(inputPath, maxSeconds))
   const seconds = Math.max(1, Math.min(maxSeconds, duration))
 
   await run('ffmpeg', [
@@ -424,7 +539,7 @@ export async function extractAudioMp3(
   outputPath: string,
   maxSeconds = 600
 ): Promise<{ buffer: Buffer; seconds: number }> {
-  const duration = await probeDuration(inputPath).catch(() => maxSeconds)
+  const duration = await probeDuration(inputPath, maxSeconds)
   const seconds = Math.max(1, Math.min(maxSeconds, duration))
 
   await run('ffmpeg', [
@@ -449,7 +564,7 @@ export async function extractAudioMp3(
 }
 
 export async function convertVideoToStickerFile(inputPath: string, outputPath: string, maxSeconds = 6) {
-  const duration = await probeDuration(inputPath).catch(() => maxSeconds)
+  const duration = await probeDuration(inputPath, maxSeconds)
   const seconds = Math.max(1, Math.min(maxSeconds, duration))
   const colorArgs = await videoColorFixArgs(inputPath)
   return encodeAnimatedSticker(inputPath, outputPath, seconds, 20, 50, colorArgs)

@@ -178,10 +178,12 @@ export default {
       audioOutput = tempFile('stch-audio', '.ogg')
       fs.writeFileSync(input, buffer)
 
-      const duration = await probeDuration(input)
-      if (!Number.isFinite(duration) || duration <= 0) {
-        throw new Error('No pude determinar la duración del video.')
-      }
+      const messageSeconds = Number(source?.msg?.seconds ?? m.msg?.seconds ?? 0)
+      const durationFallback =
+        Number.isFinite(messageSeconds) && messageSeconds > 0
+          ? messageSeconds
+          : config.maxSeconds
+      const duration = await probeDuration(input, durationFallback)
       await m.reply('⏳ Procesando el sticker con audio para el canal...')
 
       await sendAudioSticker({
