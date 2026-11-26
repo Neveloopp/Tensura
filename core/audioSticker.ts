@@ -10,6 +10,7 @@ import {
   proto,
   prepareWAMessageMedia,
 } from '@whiskeysockets/baileys'
+import { rememberAudioSticker } from './messageCache.ts'
 import { convertVideoForAudioSticker, extractAudioOpus, type StickerMetadata } from './exif.ts'
 
 let patched = false
@@ -67,13 +68,9 @@ function rawFields(buffer: Buffer): Array<{ field: number; wire: number; data: B
   return fields
 }
 
-function rawField(buffer: Buffer, number: number): Buffer | null {
-  return rawFields(buffer).find(field => field.field === number && field.wire === 2)?.data || null
-}
-
 function decodeStickerWithAudio(M: any, stickerBytes: Buffer): any {
   const sticker = M.StickerMessage.decode(stickerBytes)
-  const audioBytes = rawField(stickerBytes, 26)
+  const audioBytes = rawFields(stickerBytes).find(field => field.field === 26 && field.wire === 2)?.data
   if (audioBytes) {
     try {
       sticker.audioMessage = M.AudioMessage.decode(audioBytes)
@@ -177,19 +174,18 @@ export function patchAudioStickerProtocol() {
     const raw = source.subarray(start, Math.min(start + (end - start), source.length))
     if (!raw.length) return result
 
-    const wrapperBytes = rawField(raw, 134)
+    const fields = rawFields(raw)
+    const wrapperBytes = fields.find(field => field.field === 134 && field.wire === 2)?.data
     if (wrapperBytes) {
-      const innerBytes = rawField(wrapperBytes, 1)
-      if (!innerBytes) return result
+      const wrapperFields = rawFields(wrapperBytes)
+      const innerBytes =
+        wrapperFields.find(field => field.field === 1 && field.wire === 2)?.data || wrapperBytes
       const inner = previousDecode.call(this, innerBytes)
-      const stickerBytes = rawField(innerBytes, 26)
+      const innerFields = rawFields(innerBytes)
+      const stickerBytes = innerFields.find(field => field.field === 26 && field.wire === 2)?.data
       if (stickerBytes) {
         const sticker = decodeStickerWithAudio(this, stickerBytes)
-        if (inner?.stickerMessage) {
-          inner.stickerMessage = sticker
-        } else if (inner) {
-          inner.stickerMessage = sticker
-        }
+        if (inner) inner.stickerMessage = sticker
       }
       if (inner) {
         for (const [key, value] of Object.entries(inner)) {
@@ -199,15 +195,19 @@ export function patchAudioStickerProtocol() {
       }
       if ((inner as any)?.stickerMessage) result.stickerMessage = (inner as any).stickerMessage
     } else {
-      const stickerBytes = rawField(raw, 26)
+      const stickerBytes = fields.find(field => field.field === 26 && field.wire === 2)?.data
       if (stickerBytes && result.stickerMessage) {
-        const audioBytes = rawField(stickerBytes, 26)
+        const audioBytes = rawFields(stickerBytes).find(field => field.field === 26 && field.wire === 2)?.data
         if (audioBytes) {
           try {
             result.stickerMessage.audioMessage = this.AudioMessage.decode(audioBytes)
           } catch {}
         }
       }
+    }
+
+    if (result.stickerMessage && result.audioMessage && !result.stickerMessage.audioMessage) {
+      result.stickerMessage.audioMessage = result.audioMessage
     }
 
     return result
@@ -320,7 +320,16 @@ export async function sendPreparedAudioSticker({
     },
   }
 
-  await sock.relayMessage(chat, payload, {})
+  const messageId = await sock.relayMessage(chat, payload, {})
+  if (typeof messageId === 'string' && messageId) {
+    rememberAudioSticker(
+      {
+        key: { id: messageId },
+        message: { stickerMessage: { audioMessage } },
+      },
+      audioBuffer
+    )
+  }
   return { seconds: safeSeconds, stickerBuffer }
 }
 

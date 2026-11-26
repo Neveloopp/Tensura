@@ -191,7 +191,7 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `sticker` / `s` — imagen o video a sticker. Responde a un video con `#s -aud` para incluir el audio; si supera 25 s se recorta automáticamente.
 - `toimg` — sticker a PNG.
 - `setmeta` — cambia pack/autor (`#setmeta Mi Pack | Mi Nombre`); `delmeta` restaura.
-- `stch` — responde a un video y publica un sticker con audio en el canal; si supera el máximo configurado se recorta automáticamente. También acepta responder a un sticker con audio ya creado y lo publica sin volver a convertirlo. Lo pueden usar todos los miembros del grupo configurado; la configuración sigue siendo solo del Creador y se guarda por bot (`stch --config`: `channel`, `group`, `pack`, `author`, `max`, `on/off`, `reset`).
+- `stch` — responde a un video y publica un sticker con audio en el canal; si supera el máximo configurado se recorta automáticamente. También acepta responder a un sticker con audio ya creado y lo publica sin volver a convertirlo; si el bot recibió ese sticker, reutiliza su audio aunque WhatsApp lo omita en la cita. Lo pueden usar todos los miembros del grupo configurado; la configuración sigue siendo solo del Creador y se guarda por bot (`stch --config`: `channel`, `group`, `pack`, `author`, `max`, `on/off`, `reset`).
 - `stch --config channel <enlace|jid>` — acepta enlaces de canal como `https://whatsapp.com/channel/...` y los convierte al JID correcto.
 - `stch --config group -here` — ejecutado dentro de un grupo, lo configura como grupo permitido sin tener que pegar el JID.
 - `texch` — envía un mensaje de texto al mismo canal (`#texch Hola` o responde a un texto). También lo pueden usar los miembros del grupo configurado.
@@ -205,6 +205,8 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `ver` — responde a una imagen, video, audio o sticker, incluidos los de una sola vista, para reenviarlo.
 
 El estado de `antiprivado` es independiente en el bot principal y en cada sub bot (`database/settings.json`). Al activarlo, los mensajes privados de usuarios que no sean el Creador o el responsable del sub bot se ignoran.
+
+Las conversiones de stickers y las descargas tienen colas separadas con límites para evitar que saturen el bot. Los comandos rápidos como `ping`, `menu` o la configuración no esperan a esas tareas; si una cola pesada está llena, el bot responde que está saturado en vez de quedarse bloqueado.
 
 ## Sub bots y panel web
 

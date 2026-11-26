@@ -4,6 +4,7 @@
  * m.mentionedJid, m.sender, m.chat, m.pushName, etc.
  */
 import { downloadMediaMessage } from '@whiskeysockets/baileys'
+import { getCachedAudioSticker, rememberAudioSticker } from './messageCache.ts'
 import {
   getContextInfo,
   getMessageText,
@@ -28,6 +29,7 @@ async function safeDownload(raw: any, sock: any): Promise<Buffer> {
 }
 
 export async function smsg(sock: any, raw: any) {
+  rememberAudioSticker(raw)
   const message = unwrapMessage(raw?.message)
   const mtype = messageType(message)
   const msg = contentOf(message, mtype)
@@ -136,6 +138,11 @@ export async function smsg(sock: any, raw: any) {
           },
           sock
         ),
+    }
+
+    if (quotedType === 'stickerMessage' && quotedMsg && !quotedMsg.audioMessage) {
+      const audio = getCachedAudioSticker(quotedKey.id)
+      if (audio) quotedMsg.audioMessage = audio
     }
   }
 

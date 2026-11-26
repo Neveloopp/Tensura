@@ -23,6 +23,19 @@ import {
   normalizeJid,
 } from './core/utils.ts'
 import { addWarning } from './core/group.ts'
+import { downloadTasks, normalTasks, stickerTasks } from './core/system/limiter.ts'
+
+const FAST_COMMANDS = new Set([
+  'ping',
+  'menu',
+  'help',
+  'allmenu',
+  'bots',
+  'antiprivado',
+  'setmeta',
+  'delmeta',
+  'texch',
+])
 
 function permissionText(type: string, command: string) {
   const messages: Record<string, string> = {
@@ -178,21 +191,41 @@ export default async function handler(sock: any, m: any) {
     void Promise.resolve(sock.readMessages?.([m.key])).catch(() => null)
     void Promise.resolve(sock.sendPresenceUpdate?.('composing', m.chat)).catch(() => null)
 
-    await cmdData.run({
-      sock,
-      m,
-      args,
-      command,
-      text,
-      prefix,
-      usedPrefix: prefix,
-      settings: botSettings,
-      group: chat,
-      metadata,
-      isAdmin: canAdmin,
-      isBotAdmin,
-      isOwner,
-    })
+    const pluginKey = String(cmdData.pluginKey || '')
+    const category = String(cmdData.category || '').toLowerCase()
+    const pool =
+      ['sticker/sticker.ts', 'sticker/stch.ts', 'sticker/toimg.ts'].includes(pluginKey)
+        ? stickerTasks
+        : category === 'dow' || pluginKey === 'otros/ver.ts'
+          ? downloadTasks
+          : normalTasks
+
+    const runCommand = () =>
+      cmdData.run({
+        sock,
+        m,
+        args,
+        command,
+        text,
+        prefix,
+        usedPrefix: prefix,
+        settings: botSettings,
+        group: chat,
+        metadata,
+        isAdmin: canAdmin,
+        isBotAdmin,
+        isOwner,
+      })
+
+    try {
+      if (FAST_COMMANDS.has(command)) await runCommand()
+      else await pool.run(runCommand)
+    } catch (error: any) {
+      if (error?.code === 'SATURATED') {
+        return m.reply(`(>_<) ${error.message}`).catch(() => null)
+      }
+      throw error
+    }
   } catch (error: any) {
     const message = String(error?.message || error || 'Error desconocido')
     console.log(chalk.red(`[cmd:${command}]`), message)

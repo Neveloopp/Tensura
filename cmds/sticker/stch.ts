@@ -8,6 +8,7 @@ import {
   sendAudioSticker,
   sendPreparedAudioSticker,
 } from '../../core/audioSticker.ts'
+import { getCachedAudioStickerBuffer } from '../../core/messageCache.ts'
 import {
   channelAccessError,
   getChannelConfig,
@@ -168,13 +169,17 @@ export default {
       )
     }
 
-    const stickerAudio = source?.msg?.audioMessage || source?.message?.stickerMessage?.audioMessage
+    const stickerAudio =
+      source?.msg?.audioMessage ||
+      source?.message?.stickerMessage?.audioMessage ||
+      source?.message?.audioMessage
     if (stickerAudio) {
       try {
         const download = source?.download || m.download
         const stickerBuffer = await download()
         if (!stickerBuffer?.length) throw new Error('No pude descargar el sticker.')
-        const audioBuffer = await downloadStickerAudio(stickerAudio)
+        const cachedAudio = getCachedAudioStickerBuffer(source?.key?.id || source?.id)
+        const audioBuffer = cachedAudio || (await downloadStickerAudio(stickerAudio))
         await m.reply('⏳ Publicando el sticker con audio en el canal...')
         await sendPreparedAudioSticker({
           sock,
@@ -191,6 +196,12 @@ export default {
           `(x_x) No pude publicar el sticker: ${error?.message || 'error desconocido'}`
         )
       }
+    }
+
+    if (source?.mtype === 'stickerMessage' || source?.msg?.isSticker || source?.isSticker) {
+      return m.reply(
+        '(>_<) No encontré el audio de ese sticker. Cita el sticker con audio original o vuelve a enviarlo para que pueda guardar su audio.'
+      )
     }
 
     if (!isVideo(source)) {

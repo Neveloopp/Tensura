@@ -28,6 +28,7 @@ import groupEvents from './cmds/events.ts'
 import seeCommands from './core/system/commandLoader.ts'
 import { flushDB, getSettings, initDB, updateSettings } from './core/system/database.ts'
 import { smsg } from './core/message.ts'
+import { rememberAudioSticker } from './core/messageCache.ts'
 import { startGroupScheduler } from './core/scheduler.ts'
 import { patchAudioStickerProtocol } from './core/audioSticker.ts'
 import { setBeforeRestart, startProjectWatcher } from './core/system/sync.ts'
@@ -334,21 +335,24 @@ async function startBot() {
       }
     })
 
-    sock.ev.on('messages.upsert', async ({ messages, type }: any) => {
+    sock.ev.on('messages.upsert', ({ messages, type }: any) => {
       if (type !== 'notify') return
 
-      for (const raw of messages) {
-        try {
-          if (!raw?.message) continue
-          if (raw.key?.remoteJid === 'status@broadcast') continue
-          if (String(raw.key?.id || '').startsWith('BAE5') && String(raw.key?.id || '').length === 16) continue
-          const chat = normalizeJid(raw.key?.remoteJid)
-          if (chat.endsWith('@g.us')) rememberMainGroup(chat)
-          const m = await smsg(sock, raw)
-          await handler(sock, m)
-        } catch (error: any) {
-          console.log(chalk.gray(`[mensaje] ${error?.message || error}`))
-        }
+      for (const raw of messages || []) {
+        rememberAudioSticker(raw)
+        void (async () => {
+          try {
+            if (!raw?.message) return
+            if (raw.key?.remoteJid === 'status@broadcast') return
+            if (String(raw.key?.id || '').startsWith('BAE5') && String(raw.key?.id || '').length === 16) return
+            const chat = normalizeJid(raw.key?.remoteJid)
+            if (chat.endsWith('@g.us')) rememberMainGroup(chat)
+            const m = await smsg(sock, raw)
+            await handler(sock, m)
+          } catch (error: any) {
+            console.log(chalk.gray(`[mensaje] ${error?.message || error}`))
+          }
+        })()
       }
     })
 

@@ -9,13 +9,32 @@ import { jidDecode, getContentType } from '@whiskeysockets/baileys'
 import botConfig from '../settings.ts'
 
 const groupMetaCache = new Map<string, { data: any; ts: number }>()
+const groupMetaPending = new Map<string, Promise<any>>()
 const lidCache = new Map<string, { data: string; ts: number }>()
+const lidPending = new Map<string, Promise<string>>()
 const META_TTL = 5 * 60 * 1000
 const LID_TTL = 24 * 60 * 60 * 1000
+const META_TIMEOUT = 8000
+const LID_TIMEOUT = 3000
 
 export const TMP_DIR = path.resolve('core/system/tmp')
 
 export const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>(resolve => {
+    let settled = false
+    const finish = (value: T) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    const timer = setTimeout(() => finish(fallback), ms)
+    timer.unref?.()
+    promise.then(finish, () => finish(fallback))
+  })
+}
 
 export function normalizeJid(raw: any): string {
   if (!raw) return ''
@@ -210,9 +229,27 @@ export async function getCachedGroupMeta(sock: any, jid: string) {
   const now = Date.now()
   const cached = groupMetaCache.get(jid)
   if (cached && now - cached.ts < META_TTL) return cached.data
-  const data = await sock.groupMetadata(jid).catch(() => null)
-  if (data) groupMetaCache.set(jid, { data, ts: now })
-  return data
+
+  const pending = groupMetaPending.get(jid)
+  if (pending) return pending
+
+  let request: Promise<any>
+  try {
+    request = Promise.resolve(sock.groupMetadata(jid))
+  } catch {
+    return null
+  }
+
+  const task = withTimeout(request, META_TIMEOUT, null)
+    .then(data => {
+      if (data) groupMetaCache.set(jid, { data, ts: Date.now() })
+      return data
+    })
+    .catch(() => null)
+    .finally(() => groupMetaPending.delete(jid))
+
+  groupMetaPending.set(jid, task)
+  return task
 }
 
 function participantIds(participant: any): string[] {
@@ -248,8 +285,14 @@ export async function resolveLidToRealJid(jid: string, sock: any, groupJid = '')
   try {
     const mapping = sock?.signalRepository?.lidMapping
     if (typeof mapping?.getPNForLID === 'function') {
-      const pn = await mapping.getPNForLID(target)
-      const resolved = normalizeJid(pn)
+      let pending = lidPending.get(target)
+      if (!pending) {
+        pending = withTimeout(Promise.resolve(mapping.getPNForLID(target)), LID_TIMEOUT, '')
+          .then(pn => normalizeJid(pn))
+          .finally(() => lidPending.delete(target))
+        lidPending.set(target, pending)
+      }
+      const resolved = await pending
       if (resolved && !resolved.endsWith('@lid')) {
         lidCache.set(target, { data: resolved, ts: Date.now() })
         return resolved

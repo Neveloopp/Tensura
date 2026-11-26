@@ -15,6 +15,7 @@ import handler from '../../handler.ts'
 import groupEvents from '../../cmds/events.ts'
 import { patchAudioStickerProtocol } from '../audioSticker.ts'
 import { smsg } from '../message.ts'
+import { rememberAudioSticker } from '../messageCache.ts'
 import { isGroupJid, jidNumber, normalizeJid } from '../utils.ts'
 import { mainBotIsInGroup } from './mainGroups.ts'
 import {
@@ -469,20 +470,23 @@ export class SubBotManager {
       }
     })
 
-    sock.ev.on('messages.upsert', async ({ messages, type }: any) => {
+    sock.ev.on('messages.upsert', ({ messages, type }: any) => {
       if (type !== 'notify' || !entry.paired || entry.sock !== sock || entry.stopRequested) return
       for (const raw of messages || []) {
-        try {
-          if (!raw?.message) continue
-          if (raw.key?.remoteJid === 'status@broadcast') continue
-          if (String(raw.key?.id || '').startsWith('BAE5') && String(raw.key?.id || '').length === 16) continue
-          const chat = normalizeJid(raw.key?.remoteJid)
-          if (isGroupJid(chat) && (await mainBotIsInGroup(chat))) continue
-          const m = await smsg(sock, raw)
-          await handler(sock, m)
-        } catch (error: any) {
-          console.log(`[subbot:${entry.botId}] ${error?.message || error}`)
-        }
+        rememberAudioSticker(raw)
+        void (async () => {
+          try {
+            if (!raw?.message || entry.sock !== sock || entry.stopRequested) return
+            if (raw.key?.remoteJid === 'status@broadcast') return
+            if (String(raw.key?.id || '').startsWith('BAE5') && String(raw.key?.id || '').length === 16) return
+            const chat = normalizeJid(raw.key?.remoteJid)
+            if (isGroupJid(chat) && (await mainBotIsInGroup(chat))) return
+            const m = await smsg(sock, raw)
+            await handler(sock, m)
+          } catch (error: any) {
+            console.log(`[subbot:${entry.botId}] ${error?.message || error}`)
+          }
+        })()
       }
     })
 
