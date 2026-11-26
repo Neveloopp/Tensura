@@ -36,6 +36,7 @@ import { subBotManager } from './core/subbots/manager.ts'
 import { invalidateMainGroups, rememberMainGroup, syncMainGroups } from './core/subbots/mainGroups.ts'
 import { startSubBotWebServer } from './core/web/server.ts'
 import { normalizeJid } from './core/utils.ts'
+import { installConsoleFilter } from './core/system/consoleFilter.ts'
 
 let useCode = false
 let phoneNumber = ''
@@ -393,6 +394,8 @@ async function startBot() {
     setTimeout(() => void startBot(), 5000)
   }
 }
+
+installConsoleFilter()
 
 ;(async () => {
   banner()

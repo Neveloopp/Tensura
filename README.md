@@ -131,6 +131,7 @@ Edita `settings.ts` o crea `.env`:
 | `SYNC_BRANCH` | Rama a descargar | `main` |
 | `SYNC_WATCH` | Vigilar cambios (`0` lo desactiva) | `1` |
 | `TENSURA_AUTO_RESTART` | Reinicio automático (`0` lo desactiva) | `1` |
+| `TENSURA_VERBOSE` | Muestra el ruido de sesiones de libsignal (`1` lo activa) | `0` |
 | `GITHUB_TOKEN` | Token para `sync push` (solo en `.env`) | vacío |
 | `DB_PERSIST_MS` | Retardo de guardado JSON (ms) | `250` |
 | `SUBBOT_DATA_FILE` | JSON de sub bots | `database/subbots.json` |
@@ -206,7 +207,7 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 
 El estado de `antiprivado` es independiente en el bot principal y en cada sub bot (`database/settings.json`). Al activarlo, los mensajes privados de usuarios que no sean el Creador o el responsable del sub bot se ignoran.
 
-Las conversiones de stickers y las descargas tienen colas separadas con límites para evitar que saturen el bot. Los comandos rápidos como `ping`, `menu` o la configuración no esperan a esas tareas; si una cola pesada está llena, el bot responde que está saturado en vez de quedarse bloqueado.
+Las conversiones de stickers y las descargas tienen colas separadas con límites para evitar que saturen el bot. Los comandos rápidos como `ping`, `menu` o la configuración no esperan a esas tareas; si una cola pesada está llena, el bot responde que está saturado en vez de quedarse bloqueado. La consola oculta el ruido de `Closing session` de libsignal; usa `TENSURA_VERBOSE=1` para verlo.
 
 ## Sub bots y panel web
 
