@@ -95,6 +95,10 @@ export function patchAudioStickerProtocol() {
 
       const result = previousEncode.call(this, message, writer)
 
+      if (message?.premium !== undefined && message?.premium !== null) {
+        result.uint32(192).int32(Number(message.premium) || 0)
+      }
+
       if (audio && M.AudioMessage) {
         message.audioMessage = audio
         M.AudioMessage.encode(audio, result.uint32(210).fork()).ldelim()
@@ -234,7 +238,7 @@ export async function sendPreparedAudioSticker({
   audioBuffer,
   seconds = 5,
   isAnimated = true,
-  ptt = true,
+  ptt = false,
   quoted,
 }: {
   sock: any
@@ -276,7 +280,8 @@ export async function sendPreparedAudioSticker({
 
   const safeSeconds = Math.max(1, Math.round(Number(seconds) || 5))
   audioMessage.seconds = safeSeconds
-  audioMessage.ptt = Boolean(ptt)
+  if (ptt) audioMessage.ptt = true
+  else delete audioMessage.ptt
   audioMessage.mimetype = 'audio/ogg; codecs=opus'
 
   if (!audioMessage.waveform?.length) {
@@ -292,6 +297,8 @@ export async function sendPreparedAudioSticker({
   }
 
   prepared.stickerMessage.isAnimated = Boolean(isAnimated)
+  prepared.stickerMessage.stickerSentTs = Date.now()
+  prepared.stickerMessage.premium = 0
   prepared.stickerMessage.audioMessage = audioMessage
 
   if (quoted?.key?.id && quoted?.message) {

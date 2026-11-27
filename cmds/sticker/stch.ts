@@ -207,7 +207,7 @@ export default {
           audioBuffer,
           seconds: Number(stickerAudio.seconds) || 5,
           isAnimated: source?.msg?.isAnimated !== false,
-          ptt: Boolean(stickerAudio.ptt),
+          ptt: false,
         })
 
         await progress.done({
