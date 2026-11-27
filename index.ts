@@ -29,6 +29,7 @@ import seeCommands from './core/system/commandLoader.ts'
 import { flushDB, getSettings, initDB, updateSettings } from './core/system/database.ts'
 import { smsg } from './core/message.ts'
 import { rememberAudioSticker } from './core/messageCache.ts'
+import { claimIncoming, shouldProcessIncoming } from './core/incoming.ts'
 import { startGroupScheduler } from './core/scheduler.ts'
 import { patchAudioStickerProtocol } from './core/audioSticker.ts'
 import { setBeforeRestart, startProjectWatcher } from './core/system/sync.ts'
@@ -340,11 +341,11 @@ async function startBot() {
 
       for (const raw of messages || []) {
         rememberAudioSticker(raw)
+        if (!shouldProcessIncoming(sock, raw)) continue
+        if (!claimIncoming(raw)) continue
         void (async () => {
           try {
             if (!raw?.message) return
-            if (raw.key?.remoteJid === 'status@broadcast') return
-            if (String(raw.key?.id || '').startsWith('BAE5') && String(raw.key?.id || '').length === 16) return
             const chat = normalizeJid(raw.key?.remoteJid)
             if (chat.endsWith('@g.us')) rememberMainGroup(chat)
             const m = await smsg(sock, raw)
