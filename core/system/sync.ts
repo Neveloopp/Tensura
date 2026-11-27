@@ -24,6 +24,7 @@ const SKIP_DIRS = new Set([
   'logs',
   '.cache',
 ])
+const SYNC_MANIFEST = path.join(PROJECT_ROOT, 'core/system/tmp/sync-files.json')
 let watcherStarted = false
 let restarting = false
 let restartTimer: NodeJS.Timeout | null = null
@@ -124,7 +125,76 @@ function sameFile(a: string, b: string): boolean {
   }
 }
 
-async function pullArchive(): Promise<{ changed: string[]; output: string }> {
+type PullResult = { changed: string[]; deleted: string[]; output: string }
+
+function relativeSafe(file: string): string | null {
+  const rel = String(file || '')
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/, '')
+    .replace(/^\/+/, '')
+  if (!rel) return null
+  const parts = rel.split('/')
+  if (parts.some(part => !part || part === '.' || part === '..')) return null
+  if (parts.some(part => SKIP_DIRS.has(part))) return null
+  if (protectedPath(rel)) return null
+  return rel
+}
+
+function readManifest(): string[] {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(SYNC_MANIFEST, 'utf8'))
+    if (parsed?.repo !== repoSlug() || parsed?.branch !== SYNC_BRANCH) return []
+    if (!Array.isArray(parsed?.files)) return []
+    const files = (parsed.files as unknown[])
+      .map(file => relativeSafe(String(file)))
+      .filter((file): file is string => Boolean(file))
+    return [...new Set(files)]
+  } catch {
+    return []
+  }
+}
+
+function writeManifest(files: string[]) {
+  const list = [
+    ...new Set(files.map(relativeSafe).filter((file): file is string => Boolean(file))),
+  ].sort()
+  fs.mkdirSync(path.dirname(SYNC_MANIFEST), { recursive: true })
+  fs.writeFileSync(
+    SYNC_MANIFEST,
+    `${JSON.stringify({ repo: repoSlug(), branch: SYNC_BRANCH, files: list }, null, 2)}\n`
+  )
+}
+
+function removeEmptyDirs(start: string, root: string) {
+  let current = start
+  while (current !== root && current.startsWith(`${root}${path.sep}`)) {
+    try {
+      if (fs.readdirSync(current).length) return
+      fs.rmdirSync(current)
+    } catch {
+      return
+    }
+    current = path.dirname(current)
+  }
+}
+
+function removeSyncedFile(file: string): boolean {
+  const rel = relativeSafe(file)
+  if (!rel) return false
+  const root = path.resolve(PROJECT_ROOT)
+  const target = path.resolve(root, rel)
+  if (target === root || !target.startsWith(`${root}${path.sep}`)) return false
+  try {
+    if (!fs.lstatSync(target).isFile()) return false
+    fs.rmSync(target, { force: true })
+    removeEmptyDirs(path.dirname(target), root)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function pullArchive(): Promise<PullResult> {
   const slug = repoSlug()
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'tensura-sync-'))
   const archive = path.join(temp, 'repo.tar.gz')
@@ -148,7 +218,10 @@ async function pullArchive(): Promise<{ changed: string[]; output: string }> {
 
     const source = path.join(temp, top.name)
     const files = walkFiles(source)
+    const previous = readManifest()
+    const current = new Set(files)
     const changed: string[] = []
+    const deleted: string[] = []
 
     for (const rel of files) {
       const from = path.join(source, rel)
@@ -159,10 +232,21 @@ async function pullArchive(): Promise<{ changed: string[]; output: string }> {
       changed.push(rel)
     }
 
+    for (const rel of previous) {
+      if (current.has(rel)) continue
+      if (!removeSyncedFile(rel)) continue
+      changed.push(rel)
+      deleted.push(rel)
+    }
+
+    writeManifest(files)
+
+    const updated = changed.length - deleted.length
     return {
       changed,
+      deleted,
       output: changed.length
-        ? `Descargado ${slug}@${SYNC_BRANCH} (modo archivo).`
+        ? `Descargado ${slug}@${SYNC_BRANCH} (modo archivo): ${updated} actualizados y ${deleted.length} eliminados.`
         : `Sin cambios en ${slug}@${SYNC_BRANCH} (modo archivo).`,
     }
   } finally {
@@ -216,7 +300,7 @@ export async function syncStatus() {
   }
 }
 
-export async function pullUpdates(): Promise<{ changed: string[]; output: string }> {
+export async function pullUpdates(): Promise<PullResult> {
   const root = findGitRoot()
   if (!root) return pullArchive()
 
@@ -235,8 +319,14 @@ export async function pullUpdates(): Promise<{ changed: string[]; output: string
     before === after
       ? []
       : git(root, ['diff', '--name-only', before, after], true).split('\n').filter(Boolean)
+  const deleted =
+    before === after
+      ? []
+      : git(root, ['diff', '--diff-filter=D', '--name-only', before, after], true)
+          .split('\n')
+          .filter(Boolean)
 
-  return { changed, output }
+  return { changed, deleted, output }
 }
 
 export async function pushChanges(message = ''): Promise<{ files: string[]; output: string }> {

@@ -15,8 +15,8 @@ function short(text: string, max = 900) {
   return value.length > max ? `${value.slice(0, max)}...` : value
 }
 
-function fileList(files: string[], max = 12) {
-  const shown = files.slice(0, max).map(file => `│ • ${file}`)
+function fileList(files: string[], max = 12, bullet = '•') {
+  const shown = files.slice(0, max).map(file => `│ ${bullet} ${file}`)
   if (files.length > max) shown.push(`│ … y ${files.length - max} más`)
   return shown
 }
@@ -110,6 +110,11 @@ export default {
         )
       }
 
+      const changed = result.changed.filter(file => !result.deleted.includes(file))
+      const deleted = result.deleted
+      const removed = deleted.length
+        ? ['│', `│ Eliminados: ${deleted.length}`, ...fileList(deleted, 8, '-')]
+        : []
       const needsRestart = result.changed.some(
         file => !file.startsWith('cmds/') && /\.(ts|js|json|env)$/i.test(file)
       )
@@ -119,8 +124,9 @@ export default {
         return m.reply(
           [
             '╭─〔 SYNC · ACTUALIZADO 〕',
-            `│ Archivos: ${result.changed.length}`,
-            ...fileList(result.changed),
+            `│ Archivos: ${changed.length}`,
+            ...fileList(changed),
+            ...removed,
             '│',
             scheduled
               ? '│ Reiniciando el proceso para aplicar el resto de cambios.'
@@ -133,8 +139,9 @@ export default {
       return m.reply(
         [
           '╭─〔 SYNC · ACTUALIZADO 〕',
-          `│ Archivos: ${result.changed.length}`,
-          ...fileList(result.changed),
+          `│ Archivos: ${changed.length}`,
+          ...fileList(changed),
+          ...removed,
           '│',
           `│ Comandos recargados: ${total}`,
           '╰────────────',

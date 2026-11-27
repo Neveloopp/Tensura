@@ -198,7 +198,7 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `texch` — envía un mensaje de texto al mismo canal (`#texch Hola` o responde a un texto). También lo pueden usar los miembros del grupo configurado.
 
 ### Sistema
-- `sync` — `status`, `pull`, `push [mensaje]`, `reload` o `restart`. Sin git descarga el ZIP del repo y copia solo los archivos cambiados.
+- `sync` — `status`, `pull`, `push [mensaje]`, `reload` o `restart`. Sin git descarga el ZIP del repo, copia los archivos cambiados y elimina los que ya no existen en GitHub.
 - `bots` — muestra cuántos sub bots están conectados y cuántos están registrados.
 - `antiprivado` — `on` u `off` bloquea los mensajes privados de otras personas. Se guarda por bot y el Creador siempre puede seguir usando el bot en privado.
 - `e` / `eval` — evalúa código JavaScript en el contexto del bot y devuelve el resultado tal cual. Solo Creador.

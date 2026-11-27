@@ -20,7 +20,7 @@ import fs from 'fs'
 import path from 'path'
 import chalk from 'chalk'
 import { fileURLToPath, pathToFileURL } from 'url'
-import { registerCommandMeta } from './comandos.ts'
+import { registerCommandMeta, removeCommandMeta } from './comandos.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const commandsFolder = path.resolve(__dirname, '../../cmds')
@@ -97,6 +97,16 @@ async function importModule(filePath: string) {
   registerModule(filePath, mod)
 }
 
+function removeModule(filePath: string) {
+  const pluginKey = path.relative(commandsFolder, filePath).replace(/\\/g, '/')
+  for (const [key, value] of global.comandos) {
+    if (value?.pluginKey === pluginKey) global.comandos.delete(key)
+  }
+  imported.delete(filePath)
+  delete global.plugins[pluginKey]
+  removeCommandMeta(pluginKey)
+}
+
 function collect(dir: string, files: string[]) {
   let entries: fs.Dirent[] = []
   try {
@@ -133,6 +143,7 @@ async function scan(dir: string) {
   }
 
   await Promise.all(Array.from({ length: Math.min(limit, files.length) }, worker))
+  return files
 }
 
 function watchDir(dir: string) {
@@ -142,6 +153,11 @@ function watchDir(dir: string) {
       if (!filename || !String(filename).endsWith('.ts')) return
       const full = path.join(dir, String(filename))
       await new Promise(resolve => setTimeout(resolve, 250))
+      if (!fs.existsSync(full)) {
+        removeModule(full)
+        console.log(chalk.yellow(`✓ Comando eliminado: ${path.basename(full)}`))
+        return
+      }
       try {
         await importModule(full)
         console.log(chalk.green(`✓ Comando recargado: ${path.basename(full)}`))
@@ -159,7 +175,16 @@ function watchDir(dir: string) {
 }
 
 export async function reloadCommands() {
-  await scan(commandsFolder)
+  const files = await scan(commandsFolder)
+  const active = new Set(files)
+  for (const filePath of [...imported.keys()]) {
+    if (!active.has(filePath)) removeModule(filePath)
+  }
+  for (const pluginKey of Object.keys(global.plugins)) {
+    if (!fs.existsSync(path.join(commandsFolder, pluginKey))) {
+      removeModule(path.join(commandsFolder, pluginKey))
+    }
+  }
   return global.comandos.size
 }
 

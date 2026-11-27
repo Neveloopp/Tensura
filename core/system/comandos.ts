@@ -45,6 +45,13 @@ export function registerCommandMeta(meta: CommandMeta) {
   else commands.push(clean)
 }
 
+export function removeCommandMeta(pluginKey: string) {
+  if (!pluginKey) return
+  for (let i = commands.length - 1; i >= 0; i--) {
+    if (commands[i].pluginKey === pluginKey) commands.splice(i, 1)
+  }
+}
+
 export function getCategories() {
   const order = ['info', 'grupo', 'dow', 'sticker', 'otros']
   const categories = [...new Set(commands.filter(c => !c.hidden).map(c => c.category))]
