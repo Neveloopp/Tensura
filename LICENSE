@@ -1,21 +1,96 @@
-MIT License
+LICENCIA TENSURA DE ATRIBUCIÓN Y TITULARIDAD
+Versión 1.0
 
-Copyright (c) 2026 Neveloopp
+Copyright (c) 2026 Neveloopp. Todos los derechos reservados.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Esta licencia se aplica a Tensura, también conocido como Viko en su versión original, y a todo el código fuente, documentación, nombres, identidad visual y materiales asociados publicados por Neveloopp como parte del proyecto (el "Proyecto").
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Al acceder, usar, copiar, modificar, fusionar, publicar, distribuir, sublicenciar o vender el Proyecto, o cualquier parte de su código, aceptas esta licencia y los acuerdos de la sección 5.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. TITULARIDAD
+
+1.1. El Proyecto, su código original, su nombre, su identidad y su autoría corresponden a Neveloopp (GitHub: @Neveloopp).
+
+1.2. Esta licencia permite reutilizar y modificar el código, pero no transfiere la titularidad del Proyecto ni la autoría original.
+
+1.3. Las aportaciones realizadas al Proyecto se incorporan bajo esta misma licencia y podrán ser usadas por Neveloopp como parte del Proyecto, conservando siempre el crédito del Proyecto original.
+
+2. PERMISOS
+
+2.1. Se concede permiso, de forma gratuita, para usar, copiar, modificar, fusionar, publicar, distribuir, sublicenciar y vender copias del Proyecto y de partes de su código, con o sin modificaciones, siempre que se cumplan las condiciones de esta licencia.
+
+2.2. Se permite usar partes del código en otros proyectos, bots, plantillas o herramientas, siempre que se mantenga una atribución clara a Tensura y a Neveloopp.
+
+2.3. Toda distribución, sublicencia o publicación de una versión modificada deberá incluir esta licencia, o un enlace visible a ella, y los créditos exigidos en la sección 3.
+
+3. ATRIBUCIÓN OBLIGATORIA
+
+3.1. Toda copia, edición, versión recortada, fork o proyecto derivado debe conservar y mostrar de forma clara y visible los siguientes créditos:
+
+- Proyecto original: Tensura / Viko.
+- Autor y titular: Neveloopp.
+- Enlace al proyecto original: https://github.com/Neveloopp/Tensura
+
+3.2. Si se distribuye una edición, una versión modificada o un rebranding, debe indicarse expresamente que está basado en el Proyecto, por ejemplo: "Basado en Tensura de Neveloopp", junto con el enlace al proyecto original.
+
+3.3. Los créditos no pueden eliminarse, ocultarse, acortarse, sustituirse por otro autor ni relegarse a un lugar que el usuario final no pueda ver. En bots y aplicaciones, la atribución debe aparecer al menos en el README y en un lugar visible de la distribución, como el mensaje de inicio, el menú, la sección de información o la descripción pública.
+
+3.4. Si se reutiliza solo una parte del código, la atribución debe indicar qué parte procede de Tensura y mantener el enlace al Proyecto.
+
+3.5. No se permite presentar una edición del Proyecto como un proyecto completamente nuevo sin indicar su origen y sin acreditar a Neveloopp.
+
+4. EDICIONES, FORKS Y REBRANDINGS
+
+4.1. Cuando el software sea únicamente una edición, modificación, recorte, cambio de nombre o rebranding del Proyecto, la atribución deberá ser al menos tan visible como el nombre del proyecto derivado.
+
+4.2. En esos casos, Neveloopp podrá exigir una mención adicional o más destacada en el README, en el mensaje de inicio, en el menú, en la sección de información o en la descripción pública del bot.
+
+4.3. La obligación de atribución no depende de que los cambios sean grandes. También se aplica cuando solo se modifica el nombre, se cambian textos, se ajustan comandos o se publica una versión reducida del bot original.
+
+5. ACUERDOS DE TITULARIDAD Y CRÉDITOS
+
+Al usar, copiar, modificar o distribuir el Proyecto, todas las personas aceptan lo siguiente:
+
+5.1. El Proyecto y su identidad corresponden a Neveloopp.
+
+5.2. Neveloopp debe figurar siempre en los créditos y no puede quedar fuera de ellos, ni ser ocultado, sustituido o eliminado.
+
+5.3. No se reclamará autoría sobre el Proyecto original ni sobre partes sustanciales de su código.
+
+5.4. Si se publica una edición o derivado, se indicará claramente que está basado en Tensura de Neveloopp y se mantendrá el enlace al Proyecto original.
+
+5.5. Neveloopp podrá solicitar la corrección, ampliación o mayor visibilidad de los créditos cuando considere que la atribución es insuficiente. La licencia permanecerá suspendida hasta que se cumpla esa solicitud.
+
+5.6. Estos acuerdos son condiciones de la licencia, no simples recomendaciones.
+
+6. DISTRIBUCIÓN
+
+6.1. Se puede distribuir el Proyecto o una versión modificada, gratuita o comercialmente, siempre que se conserven esta licencia y los créditos.
+
+6.2. Toda sublicencia o redistribución debe incluir las mismas obligaciones de atribución y titularidad.
+
+6.3. No se permite aplicar una licencia diferente que elimine, reduzca u oculte la obligación de acreditar a Neveloopp.
+
+7. INCUMPLIMIENTO Y TERMINACIÓN
+
+7.1. El incumplimiento de las obligaciones de atribución o de los acuerdos de la sección 5 termina automáticamente los permisos concedidos por esta licencia.
+
+7.2. Los permisos podrán restablecerse si la persona corrige el incumplimiento dentro de los 30 días siguientes a la notificación de Neveloopp.
+
+7.3. Las obligaciones de atribución, titularidad y ausencia de garantías siguen vigentes después de cualquier terminación.
+
+8. COMPONENTES DE TERCEROS
+
+8.1. Baileys, Megumin-Bot-MD y cualquier otra dependencia o inspiración de terceros conservan sus propias licencias y créditos.
+
+8.2. Esta licencia no reclama autoría sobre componentes de terceros ni autoriza a eliminar sus avisos de licencia.
+
+8.3. Los créditos de terceros deben mantenerse junto con los créditos del Proyecto.
+
+9. SIN GARANTÍA
+
+EL PROYECTO SE ENTREGA "TAL CUAL", SIN GARANTÍAS DE NINGÚN TIPO, EXPRESAS O IMPLÍCITAS, INCLUIDAS LAS GARANTÍAS DE COMERCIABILIDAD, IDONEIDAD PARA UN FIN DETERMINADO Y NO INFRACCIÓN. EN NINGÚN CASO NEVELOOPP SERÁ RESPONSABLE DE RECLAMACIONES, DAÑOS U OTRAS RESPONSABILIDADES DERIVADAS DEL USO DEL PROYECTO O DE SU IMPOSIBILIDAD DE USO.
+
+10. ACEPTACIÓN
+
+El uso, la copia, la modificación o la distribución del Proyecto implican la aceptación de esta licencia. Quien no acepte estas condiciones no tiene permiso para usar el código.

@@ -351,8 +351,23 @@ La dependencia apunta al tarball `vendor/baileys-7.0.0-rc14-tensura.1.tgz`, gene
 
 Tensura ya no fuerza `keepAliveIntervalMs: 45000` ni la vista previa de alta calidad; usa los valores del fork.
 
+## Licencia y acuerdos de atribución
+
+Tensura/Viko es un proyecto original de **Neveloopp**. Se permite usar, editar y reutilizar el código y partes de él, incluso en otros bots, siempre que se conserven créditos claros y visibles a **Neveloopp** y al proyecto original. Si publicas una edición, versión recortada, fork o rebranding, debes indicar que está basado en Tensura de Neveloopp y enlazar este repositorio; los créditos no pueden eliminarse, ocultarse ni sustituirse.
+
+Toda persona que use, copie, modifique o distribuya el proyecto acepta que:
+
+- El proyecto original y su identidad corresponden a **Neveloopp**.
+- **Neveloopp** debe aparecer siempre en los créditos y no puede quedar fuera de ellos.
+- Si solo se trata de una edición del bot original, la atribución debe ser al menos igual de visible que el nombre del proyecto derivado.
+- **Neveloopp** puede exigir una mención adicional o más destacada cuando la atribución sea insuficiente.
+- El incumplimiento de estas condiciones termina los permisos de uso.
+
+La licencia completa está en [LICENSE](LICENSE). Reemplaza a la licencia MIT anterior.
+
 ## Créditos
 
-- Funcionalidad y estilo original: **Viko** de Neveloopp.
+- Proyecto original y titular: **Tensura / Viko**, por **Neveloopp** — https://github.com/Neveloopp/Tensura
 - Inspiración de estructura TypeScript: **Megumin-Bot-MD**.
+- Baileys: **@whiskeysockets/baileys** (MIT), con fork mantenido por **Neveloopp**.
 - Tensura es una versión recortada y reordenada para grupos, descargas y stickers.
