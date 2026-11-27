@@ -16,6 +16,7 @@ import {
   resolveChannelDestination,
 } from '../../core/channel.ts'
 import { probeDuration } from '../../core/exif.ts'
+import { createProgress } from '../../core/progress.ts'
 import { updateSettings } from '../../core/system/database.ts'
 import { normalizeJid, removeFile, tempFile } from '../../core/utils.ts'
 
@@ -169,18 +170,36 @@ export default {
       )
     }
 
+    let progress: any = null
     const stickerAudio =
       source?.msg?.audioMessage ||
       source?.message?.stickerMessage?.audioMessage ||
       source?.message?.audioMessage
     if (stickerAudio) {
       try {
+        progress = await createProgress(sock, m.chat, {
+          title: 'Descargando sticker',
+          body: 'Obteniendo el sticker con audio...',
+          description: 'Publicando en el canal',
+        })
+
         const download = source?.download || m.download
         const stickerBuffer = await download()
         if (!stickerBuffer?.length) throw new Error('No pude descargar el sticker.')
+
+        await progress.step({
+          title: 'Preparando audio',
+          body: 'Comprobando la pista de audio del sticker...',
+        })
+
         const cachedAudio = getCachedAudioStickerBuffer(source?.key?.id || source?.id)
         const audioBuffer = cachedAudio || (await downloadStickerAudio(stickerAudio))
-        await m.reply('⏳ Publicando el sticker con audio en el canal...')
+
+        await progress.step({
+          title: 'Publicando en el canal',
+          body: 'Enviando el sticker con audio...',
+        })
+
         await sendPreparedAudioSticker({
           sock,
           chat: config.channel,
@@ -190,8 +209,15 @@ export default {
           isAnimated: source?.msg?.isAnimated !== false,
           ptt: Boolean(stickerAudio.ptt),
         })
+
+        await progress.done({
+          title: 'Listo',
+          body: 'Sticker con audio publicado en el canal.',
+          description: 'Sticker publicado',
+        })
         return m.reply('(＾▽＾) Sticker con audio publicado en el canal.')
       } catch (error: any) {
+        await progress?.fail(error?.message || 'error desconocido')
         return m.reply(
           `(x_x) No pude publicar el sticker: ${error?.message || 'error desconocido'}`
         )
@@ -213,6 +239,12 @@ export default {
     let audioOutput = ''
 
     try {
+      progress = await createProgress(sock, m.chat, {
+        title: 'Descargando video',
+        body: 'Obteniendo el video...',
+        description: 'Creando sticker con audio',
+      })
+
       const download = source?.download || m.download
       const buffer = await download()
       if (!buffer?.length) throw new Error('No pude descargar el video.')
@@ -222,13 +254,22 @@ export default {
       audioOutput = tempFile('stch-audio', '.ogg')
       fs.writeFileSync(input, buffer)
 
+      await progress.step({
+        title: 'Analizando video',
+        body: 'Midiendo la duración del video...',
+      })
+
       const messageSeconds = Number(source?.msg?.seconds ?? m.msg?.seconds ?? 0)
       const durationFallback =
         Number.isFinite(messageSeconds) && messageSeconds > 0
           ? messageSeconds
           : config.maxSeconds
       const duration = await probeDuration(input, durationFallback)
-      await m.reply('⏳ Procesando el sticker con audio para el canal...')
+
+      await progress.step({
+        title: 'Preparando sticker con audio',
+        body: 'Convirtiendo el video, extrayendo el audio y publicándolo en el canal...',
+      })
 
       await sendAudioSticker({
         sock,
@@ -245,6 +286,12 @@ export default {
         duration,
       })
 
+      await progress.done({
+        title: 'Listo',
+        body: 'Sticker con audio publicado en el canal.',
+        description: 'Sticker publicado',
+      })
+
       const trimmed = duration > config.maxSeconds
       return m.reply(
         `(＾▽＾) Sticker con audio publicado en el canal.\n• Duración: ${Math.ceil(
@@ -252,6 +299,7 @@ export default {
         )}s${trimmed ? ' (recortado automáticamente)' : ''}`
       )
     } catch (error: any) {
+      await progress?.fail(error?.message || 'error desconocido')
       return m.reply(`(x_x) No pude publicar el sticker: ${error?.message || 'error desconocido'}`)
     } finally {
       removeFile(input)

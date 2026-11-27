@@ -5,6 +5,7 @@ import fs from 'fs'
 import botConfig from '../../settings.ts'
 import { createStickerBuffer, probeDuration } from '../../core/exif.ts'
 import { sendAudioSticker } from '../../core/audioSticker.ts'
+import { createProgress } from '../../core/progress.ts'
 import { getStickerMeta } from '../../core/system/database.ts'
 import { extensionFromMime, removeFile, tempFile } from '../../core/utils.ts'
 
@@ -42,8 +43,15 @@ export default {
     let input = ''
     let output = ''
     let audioOutput = ''
+    let progress: any = null
 
     try {
+      progress = await createProgress(sock, m.chat, {
+        title: 'Descargando',
+        body: 'Obteniendo el archivo...',
+        description: 'Creando sticker',
+      })
+
       const download = quoted?.download ? quoted.download : m.download
       const buffer = await download()
       if (!buffer?.length) throw new Error('No pude descargar el archivo.')
@@ -59,9 +67,19 @@ export default {
       }
 
       if (withAudio) {
+        await progress.step({
+          title: 'Analizando video',
+          body: 'Midiendo la duración y preparando el audio...',
+        })
+
         const duration = await probeDuration(input, botConfig.sticker.audioMaxSeconds)
         output = tempFile('sticker-output', '.webp')
         audioOutput = tempFile('sticker-audio', '.ogg')
+
+        await progress.step({
+          title: 'Preparando sticker con audio',
+          body: 'Convirtiendo el video y extrayendo la pista de audio...',
+        })
 
         await sendAudioSticker({
           sock,
@@ -75,16 +93,38 @@ export default {
           quoted: replyTarget,
         })
 
+        await progress.done({
+          title: 'Listo',
+          body: 'Sticker con audio enviado.',
+          description: 'Sticker con audio listo',
+        })
         return
       }
+
+      await progress.step({
+        title: isVideo ? 'Convirtiendo video' : 'Convirtiendo imagen',
+        body: isVideo ? 'Creando el sticker animado...' : 'Ajustando la imagen a 512×512...',
+      })
 
       const sticker = await createStickerBuffer(
         { mimetype: mimetype || (isVideo ? 'video/mp4' : 'image/jpeg'), data: buffer },
         metadata
       )
 
-      return m.send({ sticker }, { quoted: replyTarget })
+      await progress.step({
+        title: 'Enviando sticker',
+        body: 'Enviando el sticker al chat...',
+      })
+
+      await m.send({ sticker }, { quoted: replyTarget })
+      await progress.done({
+        title: 'Listo',
+        body: 'Sticker creado.',
+        description: 'Sticker creado',
+      })
+      return
     } catch (error: any) {
+      await progress?.fail(error?.message || 'error desconocido')
       return m.reply(`(x_x) No pude crear el sticker: ${error?.message || 'error desconocido'}`)
     } finally {
       removeFile(input)
