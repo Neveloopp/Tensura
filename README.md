@@ -156,7 +156,7 @@ Edita `settings.ts` o crea `.env`:
 | `EVOGB_API_KEY` | Clave de Evogb | configúrala |
 | `RAYLAIS_API_KEY` | Clave de Raylais | configúrala |
 | `OPENROUTER_API_KEY` | Clave de OpenRouter para `ia` | vacío |
-| `OPENROUTER_MODEL` | Modelo de OpenRouter | `deepseek/deepseek-chat-v3-0324:free` |
+| `OPENROUTER_MODEL` | Modelo de OpenRouter | `deepseek/deepseek-chat-v3-0324` |
 | `OPENROUTER_MAX_TOKENS` | Tokens máximos de la respuesta | `2048` |
 | `OPENROUTER_MAX_TOOL_ROUNDS` | Rondas máximas de herramientas | `4` |
 
