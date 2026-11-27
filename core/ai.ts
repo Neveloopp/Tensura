@@ -8,8 +8,15 @@ const BROWSER_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
-  'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9,es;q=0.8',
 }
+
+const WIKI_HEADERS = {
+  'User-Agent': 'TensuraBot/1.0 (https://github.com/Neveloopp/Tensura)',
+  Accept: 'application/json',
+}
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export type AIStep = {
   title: string
@@ -169,12 +176,93 @@ export function parseDuckDuckGo(html: string, limit = 5) {
     .filter(result => result.title && result.url)
 }
 
+function stripMarkdown(value: string) {
+  return decodeEntities(
+    String(value)
+      .replace(/\[Read more\]\([^)]+\)/gi, ' ')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/[*_`#]+/g, ' ')
+  )
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function decodeBingUrl(value: string) {
+  try {
+    const url = new URL(decodeEntities(value))
+    const encoded = url.searchParams.get('u')
+    if (encoded) {
+      const raw = encoded.startsWith('a1') ? encoded.slice(2) : encoded
+      try {
+        const decoded = Buffer.from(raw, 'base64url').toString('utf8')
+        if (/^https?:\/\//i.test(decoded)) return decoded
+      } catch {}
+    }
+    return url.toString()
+  } catch {
+    return value
+  }
+}
+
+export function parseJinaBing(markdown: string, limit = 5) {
+  const lines = String(markdown).split(/\r?\n/)
+  const results: Array<{ title: string; url: string; snippet: string }> = []
+
+  for (let index = 0; index < lines.length && results.length < limit; index++) {
+    const heading = lines[index].match(/##\s+\[([^\]]+)\]\((https?:\/\/[^)]+)\)/)
+    if (!heading) continue
+
+    const title = stripMarkdown(heading[1])
+    const url = decodeBingUrl(heading[2])
+    if (!title || !url || /^read more$/i.test(title)) continue
+
+    const snippets: string[] = []
+    for (let next = index + 1; next < lines.length; next++) {
+      if (/^(##|####)\s+/.test(lines[next]) || /^\s*\d+\.\s+/.test(lines[next])) break
+      const snippet = stripMarkdown(lines[next])
+      if (!snippet) continue
+      if (/^(Title|URL Source|Final URL|Markdown Content):/i.test(snippet)) continue
+      if (/^!\[Image/i.test(snippet)) continue
+      snippets.push(snippet)
+      if (snippets.join(' ').length > 500) break
+    }
+
+    results.push({
+      title,
+      url,
+      snippet: snippets.join(' ').replace(/\s*Read more\b.*$/i, '').slice(0, 400),
+    })
+  }
+
+  return results
+}
+
+async function searchBingJina(query: string, limit: number) {
+  const spanish =
+    /[áéíóúñ¿¡]|\b(?:el|la|los|las|de|del|que|y|en|hoy|noticias|precio|clima|qué|cómo|por|para)\b/i.test(
+      query
+    )
+  const response = await axios.get(
+    `https://r.jina.ai/http://www.bing.com/search?q=${encodeURIComponent(query)}${spanish ? '&cc=es' : ''}`,
+    {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        Accept: 'text/plain',
+      },
+      timeout: 30_000,
+      responseType: 'text',
+      maxContentLength: 800_000,
+    }
+  )
+  return parseJinaBing(response.data, limit)
+}
+
 async function searchWeb(query: string, limit = 5) {
   const q = String(query || '').trim().slice(0, 300)
   if (!q) throw new Error('Falta la consulta de búsqueda.')
   const max = Math.max(1, Math.min(8, Math.floor(Number(limit) || 5)))
+  let lastError: any
 
-  let firstError: any
   try {
     const response = await axios.get('https://html.duckduckgo.com/html/', {
       params: { q },
@@ -186,7 +274,7 @@ async function searchWeb(query: string, limit = 5) {
     const results = parseDuckDuckGo(response.data, max)
     if (results.length) return { query: q, results }
   } catch (error) {
-    firstError = error
+    lastError = error
   }
 
   try {
@@ -213,15 +301,24 @@ async function searchWeb(query: string, limit = 5) {
         snippet: String(topic.Text),
       })
     }
-    return {
-      query: q,
-      results: results.slice(0, max),
-      ...(results.length ? {} : { note: 'La búsqueda no devolvió resultados.' }),
-    }
-  } catch (error: any) {
-    const message =
-      error?.message || firstError?.message || 'No se pudo conectar con el buscador.'
-    throw new Error(`Búsqueda no disponible: ${message}`)
+    if (results.length) return { query: q, results: results.slice(0, max) }
+  } catch (error) {
+    lastError = error
+  }
+
+  try {
+    const results = await searchBingJina(q, max)
+    if (results.length) return { query: q, results }
+  } catch (error) {
+    lastError = error
+  }
+
+  return {
+    query: q,
+    results: [],
+    note: lastError
+      ? `No se pudo completar la búsqueda: ${String(lastError?.message || lastError).slice(0, 160)}`
+      : 'La búsqueda no devolvió resultados.',
   }
 }
 
@@ -323,34 +420,78 @@ async function readUrl(value: string) {
   }
 }
 
+async function wikipediaGet(url: string, config: any) {
+  try {
+    return await axios.get(url, config)
+  } catch (error: any) {
+    if (error?.response?.status === 429) {
+      await sleep(800)
+      return axios.get(url, config)
+    }
+    throw error
+  }
+}
+
 async function wikipediaSummary(query: string, lang = 'es') {
   const q = String(query || '').trim().slice(0, 200)
   if (!q) throw new Error('Falta el tema de Wikipedia.')
   const code = /^[a-z]{2,3}$/i.test(String(lang || '')) ? String(lang).toLowerCase() : 'es'
   const base = `https://${code}.wikipedia.org`
-  const search = await axios.get(`${base}/w/api.php`, {
-    params: {
-      action: 'query',
-      list: 'search',
-      srsearch: q,
-      srlimit: 3,
-      format: 'json',
-      utf8: 1,
-    },
-    headers: { ...BROWSER_HEADERS, Accept: 'application/json' },
-    timeout: 15_000,
-  })
-  const hits = search.data?.query?.search || []
-  if (!hits.length) return { query: q, results: [] }
+  let hits: any[] = []
+
+  try {
+    const search = await wikipediaGet(`${base}/w/api.php`, {
+      params: {
+        action: 'query',
+        list: 'search',
+        srsearch: q,
+        srlimit: 3,
+        format: 'json',
+        utf8: 1,
+      },
+      headers: WIKI_HEADERS,
+      timeout: 15_000,
+    })
+    hits = search.data?.query?.search || []
+  } catch {}
+
+  if (!hits.length) {
+    try {
+      const search = await wikipediaGet(`${base}/w/rest.php/v1/search/page`, {
+        params: { q, limit: 3 },
+        headers: WIKI_HEADERS,
+        timeout: 15_000,
+      })
+      hits = (search.data?.pages || []).map((page: any) => ({
+        title: String(page.title || ''),
+        snippet: stripHtml(String(page.excerpt || '')),
+      }))
+    } catch {}
+  }
+
+  if (!hits.length) {
+    try {
+      const direct = await wikipediaGet(
+        `${base}/api/rest_v1/page/summary/${encodeURIComponent(q)}`,
+        { headers: WIKI_HEADERS, timeout: 15_000 }
+      )
+      return {
+        title: direct.data?.title || q,
+        description: direct.data?.description || '',
+        extract: direct.data?.extract || '',
+        url:
+          direct.data?.content_urls?.desktop?.page ||
+          `${base}/wiki/${encodeURIComponent(q)}`,
+      }
+    } catch {}
+    return { query: q, results: [] }
+  }
 
   const title = String(hits[0].title)
   try {
-    const summary = await axios.get(
+    const summary = await wikipediaGet(
       `${base}/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
-      {
-        headers: { ...BROWSER_HEADERS, Accept: 'application/json' },
-        timeout: 15_000,
-      }
+      { headers: WIKI_HEADERS, timeout: 15_000 }
     )
     return {
       title: summary.data?.title || title,
