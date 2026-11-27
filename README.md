@@ -1,5 +1,11 @@
 # Tensura
 
+## Donaciones
+
+Si Tensura te resulta útil, puedes apoyar el proyecto con una donación:
+
+[**Donar por PayPal**](https://paypal.me/eliasarmoncada)
+
 Versión recortada de **Viko** enfocada en tres cosas: **grupos**, **descargas** y **stickers** (incluidos los stickers con audio `-aud`). La estructura y el estilo de código siguen la idea de **Megumin-Bot-MD**: TypeScript, `index.ts`, `handler.ts`, `settings.ts`, `core/` y comandos auto-cargados desde `cmds/`.
 
 
