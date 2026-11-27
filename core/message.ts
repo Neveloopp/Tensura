@@ -4,7 +4,7 @@
  * m.mentionedJid, m.sender, m.chat, m.pushName, etc.
  */
 import { downloadMediaMessage } from '@whiskeysockets/baileys'
-import { getCachedAudioSticker, getCachedViewOnce, rememberAudioSticker, rememberViewOnce } from './messageCache.ts'
+import { getCachedAudioSticker, rememberAudioSticker } from './messageCache.ts'
 import {
   getContextInfo,
   getMessageText,
@@ -12,7 +12,6 @@ import {
   normalizeJid,
   resolveLidToRealJid,
   unwrapMessage,
-  isViewOnceMessage,
   jidNumber,
 } from './utils.ts'
 
@@ -49,7 +48,6 @@ async function safeDownload(raw: any, sock: any): Promise<Buffer> {
 
 export async function smsg(sock: any, raw: any) {
   rememberAudioSticker(raw)
-  rememberViewOnce(raw)
   const message = unwrapMessage(raw?.message)
   const mtype = messageType(message)
   const msg = contentOf(message, mtype)
@@ -119,28 +117,21 @@ export async function smsg(sock: any, raw: any) {
 
   m.quoted = null
   if (ctx?.quotedMessage) {
+    const quotedMessage = unwrapMessage(ctx.quotedMessage)
+    const quotedType = messageType(quotedMessage)
+    const quotedMsg = contentOf(quotedMessage, quotedType)
     const quotedKey = {
       remoteJid: m.chat,
       fromMe: false,
       id: ctx.stanzaId || '',
       participant: normalizeJid(ctx.participant || ''),
     }
-    const cachedViewOnce = getCachedViewOnce(quotedKey.id)
-    const rawQuotedMessage = ctx.quotedMessage
-    const sourceMessage = cachedViewOnce?.message || rawQuotedMessage
-    const quotedMessage = unwrapMessage(sourceMessage)
-    const quotedType = messageType(quotedMessage)
-    const quotedMsg = contentOf(quotedMessage, quotedType)
     const quotedSender = normalizeJid(ctx.participant || '')
 
     m.quoted = {
       key: quotedKey,
       id: quotedKey.id,
       message: quotedMessage,
-      raw: rawQuotedMessage,
-      originalMessage: sourceMessage,
-      viewOnce: Boolean(cachedViewOnce) || isViewOnceMessage(rawQuotedMessage),
-      messageTimestamp: cachedViewOnce?.timestamp || 0,
       mtype: quotedType,
       msg: quotedMsg,
       sender: quotedSender,

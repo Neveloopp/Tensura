@@ -201,32 +201,6 @@ export function messageType(message: any): string {
   return getContentType(unwrapMessage(message)) || ''
 }
 
-const VIEW_ONCE_WRAPPERS = [
-  'viewOnceMessage',
-  'viewOnceMessageV2',
-  'viewOnceMessageV2Extension',
-] as const
-const VIEW_ONCE_TYPES = [
-  'imageMessage',
-  'videoMessage',
-  'audioMessage',
-  'extendedTextMessage',
-  'documentMessage',
-] as const
-const VIEW_ONCE_CONTAINERS = ['ephemeralMessage', 'documentWithCaptionMessage', 'editedMessage'] as const
-
-export function isViewOnceMessage(message: any): boolean {
-  if (!message || typeof message !== 'object') return false
-
-  if (VIEW_ONCE_WRAPPERS.some(key => Boolean(message[key]?.message))) return true
-  if (VIEW_ONCE_TYPES.some(key => message[key]?.viewOnce === true)) return true
-
-  return VIEW_ONCE_CONTAINERS.some(key => {
-    const inner = message[key]?.message
-    return inner ? isViewOnceMessage(inner) : false
-  })
-}
-
 export function getMessageText(message: any): string {
   const msg = unwrapMessage(message)
   if (!msg) return ''

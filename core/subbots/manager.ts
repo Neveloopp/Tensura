@@ -566,7 +566,7 @@ export class SubBotManager {
         version,
         logger,
         printQRInTerminal: false,
-        browser: Browsers.android('13'),
+        browser: Browsers.ubuntu('Chrome'),
         auth: {
           creds: state.creds,
           keys: makeCacheableSignalKeyStore(state.keys, logger),
