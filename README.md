@@ -203,6 +203,7 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `antiprivado` — `on` u `off` bloquea los mensajes privados de otras personas. Se guarda por bot y el Creador siempre puede seguir usando el bot en privado.
 - `e` / `eval` — evalúa código JavaScript en el contexto del bot y devuelve el resultado tal cual. Solo Creador.
 - `r` — evalúa una expresión JavaScript y devuelve el resultado tal cual. Solo Creador.
+- `crm` — responde a un mensaje y envía un TXT con el código listo para copiar y ejecutar con `.e`. Solo Creador.
 - `ver` — responde a una imagen, video, audio o sticker, incluidos los de una sola vista, para reenviarlo.
 
 El estado de `antiprivado` es independiente en el bot principal y en cada sub bot (`database/settings.json`). Al activarlo, los mensajes privados de usuarios que no sean el Creador o el responsable del sub bot se ignoran.
