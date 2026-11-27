@@ -67,6 +67,13 @@ export const settings = {
       key: env.LEMPI_API_KEY || '',
     },
   },
+  ai: {
+    key: env.OPENROUTER_API_KEY || '',
+    url: env.OPENROUTER_URL || 'https://openrouter.ai/api/v1/chat/completions',
+    model: env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3-0324:free',
+    maxTokens: number(env.OPENROUTER_MAX_TOKENS, 2048),
+    maxToolRounds: number(env.OPENROUTER_MAX_TOOL_ROUNDS, 4),
+  },
   messages: {
     owner: 'ꕥ Este comando solo puede usarlo mi Creador.',
     admin: 'ꕥ Este comando solo puede usarlo un Administrador del grupo.',

@@ -21,6 +21,7 @@ Versión recortada de **Viko** enfocada en tres cosas: **grupos**, **descargas**
 - Comandos con prefijos configurables y recarga en caliente al editar archivos de `cmds/`.
 - `sync` actualiza desde GitHub (git o ZIP), recarga comandos y reinicia el proceso si cambia el núcleo.
 - `stch` publica stickers de audio en el canal y `texch` envía texto; ambos usan el canal y el grupo configurados con `stch --config`.
+- `ia` consulta DeepSeek V3 con OpenRouter, búsqueda web, Wikipedia, clima y hora, con tarjeta de progreso y sin ejecutar código.
 - Bienvenidas, despedidas, reglas, antienlaces, advertencias, expulsiones, administradores, invitaciones, solicitudes, cierre/apertura y horario automático.
 - Descargas de YouTube, TikTok, Facebook, Instagram, MediaFire, Pinterest, Threads y APK.
 - Stickers de imagen/video y stickers con audio (`#s -aud`) con metadatos por usuario.
@@ -106,7 +107,7 @@ Tensura/
 │       └── database.ts      # JSON DB y globales
 ├── cmds/
 │   ├── events.ts            # bienvenida/despedida
-│   ├── info/                # menu, ping, infobot
+│   ├── info/                # menu, ping, infobot, ia
 │   ├── grupo/               # moderación y administración
 │   ├── owner/               # bots y herramientas de dueño
 │   ├── dow/                 # descargas
@@ -154,6 +155,10 @@ Edita `settings.ts` o crea `.env`:
 | `SUBBOT_WEB_PASSWORD` | Contraseña de la cuenta administradora opcional | vacío |
 | `EVOGB_API_KEY` | Clave de Evogb | configúrala |
 | `RAYLAIS_API_KEY` | Clave de Raylais | configúrala |
+| `OPENROUTER_API_KEY` | Clave de OpenRouter para `ia` | vacío |
+| `OPENROUTER_MODEL` | Modelo de OpenRouter | `deepseek/deepseek-chat-v3-0324:free` |
+| `OPENROUTER_MAX_TOKENS` | Tokens máximos de la respuesta | `2048` |
+| `OPENROUTER_MAX_TOOL_ROUNDS` | Rondas máximas de herramientas | `4` |
 
 Configura tus propias claves en `.env`. Si una clave deja de funcionar, cámbiala sin tocar los comandos.
 
@@ -165,6 +170,7 @@ El menú se genera solo con los archivos de `cmds/`. Los nombres principales son
 - `menu` / `help` / `allmenu` — menú y ayuda por comando.
 - `ping` — RTT real de WhatsApp, event loop, CPU, RAM, límites del contenedor (cgroup) y estado de las colas (250 ms de muestra y hasta 3 s de espera). La línea `Colas` muestra `activos/límite+esperando`; por ejemplo `dow 2/2+8` significa descargas llenas y 8 comandos esperando.
 - `infobot` — información del bot.
+- `ia` / `ai` — pregunta a DeepSeek V3 mediante OpenRouter. Muestra una tarjeta de progreso con los pasos y puede buscar en la web, leer URLs públicas, consultar Wikipedia, el clima y la hora. No ejecuta código, comandos ni accede a archivos locales. También acepta responder a un mensaje para usar su texto como pregunta. Requiere `OPENROUTER_API_KEY`.
 
 ### Grupos
 - `welcome` — bienvenida (`on`, `off`, `set`, `reset`).
