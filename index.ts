@@ -203,7 +203,7 @@ async function startBot() {
       version,
       logger,
       printQRInTerminal: false,
-      browser: Browsers.ubuntu('Chrome'),
+      browser: Browsers.android('13'),
       auth: {
         creds: state.creds,
         keys: makeCacheableSignalKeyStore(state.keys, logger),

@@ -21,10 +21,28 @@ function cleanViewOnce(message: any) {
   return cleaned
 }
 
+function hasMediaPayload(message: any) {
+  const content = cleanViewOnce(message)
+  if (!content) return false
+
+  const type = messageType(content)
+  const media = type ? content[type] : null
+  if (!media || typeof media !== 'object') return false
+
+  const key = media.mediaKey
+  const hasKey = Boolean(key && (typeof key.length !== 'number' || key.length > 0))
+  return hasKey && Boolean(media.url || media.directPath)
+}
+
 async function relayOriginal(sock: any, m: any, quoted: any) {
   const source = quoted.originalMessage || quoted.raw || quoted.message
   const content = cleanViewOnce(source)
   if (!content) throw new Error('No pude reconstruir el mensaje original.')
+  if (!hasMediaPayload(source)) {
+    throw new Error(
+      'WhatsApp no entregó el archivo de esta vista única. La sesión está vinculada como Web y WhatsApp solo entrega vistas únicas a dispositivos Android; hay que revincular el bot como Android.'
+    )
+  }
 
   const messageId = await sock.relayMessage(m.chat, content, {})
   if (!messageId) throw new Error('WhatsApp no confirmó el reenvío.')
