@@ -16,6 +16,16 @@ declare global {
   var updateGroup: (jid: string, updater: any, title?: string) => any
   var getStickerMeta: (jid: string) => any
   var updateStickerMeta: (jid: string, key: string, value: any) => any
+  var getActivity: (botId: string) => any
+  var recordActivity: (
+    botId: string,
+    chatId: string,
+    name?: string,
+    type?: 'group' | 'private',
+    score?: number
+  ) => any
+  var topChats: (botId: string, limit?: number) => Array<Record<string, any>>
+  var allActivity: () => Record<string, any>
   var allUsers: () => Record<string, any>
   var allChats: () => Record<string, any>
   var flushDB: () => void

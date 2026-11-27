@@ -15,12 +15,17 @@ const FILES = {
   users: path.join(DB_DIR, 'users.json'),
   chats: path.join(DB_DIR, 'chats.json'),
   stickers: path.join(DB_DIR, 'stickers.json'),
+  activity: path.join(DB_DIR, 'activity.json'),
 }
 
 const cache: Record<string, Dict> = {}
 const pending = new Set<keyof typeof FILES>()
 let persistTimer: NodeJS.Timeout | null = null
 const PERSIST_DELAY = Math.max(50, Number(process.env.DB_PERSIST_MS || 250))
+const ACTIVITY_LIMIT = (() => {
+  const value = Number(process.env.ACTIVITY_CHAT_LIMIT || 1000)
+  return Number.isFinite(value) ? Math.max(50, Math.min(5000, Math.floor(value))) : 1000
+})()
 
 function ensureDir() {
   fs.mkdirSync(DB_DIR, { recursive: true })
@@ -143,6 +148,20 @@ function defaultStickerMeta(jid: string) {
   }
 }
 
+function defaultActivity(botId: string) {
+  return {
+    id: botId,
+    chats: {} as Dict,
+  }
+}
+
+function normalizeActivity(activity: any, botId: string) {
+  const out = activity && typeof activity === 'object' ? activity : defaultActivity(botId)
+  out.id = botId
+  out.chats = out.chats && typeof out.chats === 'object' ? out.chats : {}
+  return out
+}
+
 function normalizeChat(chat: any, jid: string, title = '') {
   const base = defaultChat(jid, title)
   const out = chat && typeof chat === 'object' ? chat : {}
@@ -238,6 +257,88 @@ export function allChats() {
   return table('chats')
 }
 
+// ── Actividad por bot y chat ─────────────────────────────────────
+export function getActivity(botId: string) {
+  const id = String(botId || '').trim()
+  const data = table('activity')
+  if (!id) return defaultActivity('')
+  if (!data[id]) {
+    data[id] = defaultActivity(id)
+    persist('activity')
+  } else {
+    data[id] = normalizeActivity(data[id], id)
+  }
+  return data[id]
+}
+
+export function recordActivity(
+  botId: string,
+  chatId: string,
+  name = '',
+  type: 'group' | 'private' = 'group',
+  score = 1
+) {
+  const id = String(botId || '').trim()
+  const chat = String(chatId || '').trim()
+  if (!id || !chat) return null
+
+  const data = table('activity')
+  const bot = data[id] && typeof data[id] === 'object' ? data[id] : (data[id] = defaultActivity(id))
+  if (!bot.chats || typeof bot.chats !== 'object') bot.chats = {}
+
+  const current = bot.chats[chat] && typeof bot.chats[chat] === 'object' ? bot.chats[chat] : {}
+  const amount = Number(score)
+  const cleanName = String(name || current.name || chat)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
+
+  current.id = chat
+  current.name = cleanName || chat
+  current.type = type === 'private' ? 'private' : 'group'
+  current.score =
+    Math.max(0, Number(current.score) || 0) +
+    (Number.isFinite(amount) && amount > 0 ? amount : 1)
+  current.lastUsed = now()
+  bot.chats[chat] = current
+
+  if (Object.keys(bot.chats).length > ACTIVITY_LIMIT) {
+    const ranked = (Object.entries(bot.chats) as Array<[string, any]>).sort(
+      (a, b) =>
+        (Number(b[1]?.score) || 0) - (Number(a[1]?.score) || 0) ||
+        String(b[1]?.lastUsed || '').localeCompare(String(a[1]?.lastUsed || ''))
+    )
+    for (const [key] of ranked.slice(ACTIVITY_LIMIT)) delete bot.chats[key]
+  }
+
+  persist('activity')
+  return current
+}
+
+export function topChats(botId: string, limit = 10) {
+  const record = getActivity(botId)
+  const max = Math.max(1, Math.min(50, Math.floor(Number(limit) || 10)))
+  return (Object.entries(record.chats || {}) as Array<[string, any]>)
+    .map(([id, value]) => ({
+      id: String(value?.id || id),
+      name:
+        String(value?.name || id)
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 120) || id,
+      score: Math.max(0, Number(value?.score) || 0),
+      type: value?.type === 'private' ? 'private' : 'group',
+      lastUsed: typeof value?.lastUsed === 'string' ? value.lastUsed : '',
+    }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score || b.lastUsed.localeCompare(a.lastUsed))
+    .slice(0, max)
+}
+
+export function allActivity() {
+  return table('activity')
+}
+
 // ── Metadatos de stickers ────────────────────────────────────────
 export function getStickerMeta(jid: string) {
   const data = table('stickers')
@@ -287,6 +388,10 @@ export function initDB() {
     updateGroup,
     getStickerMeta,
     updateStickerMeta,
+    getActivity,
+    recordActivity,
+    topChats,
+    allActivity,
     allUsers,
     allChats,
     deletedb,
@@ -302,6 +407,10 @@ export function initDB() {
   global.updateGroup = updateGroup
   global.getStickerMeta = getStickerMeta
   global.updateStickerMeta = updateStickerMeta
+  global.getActivity = getActivity
+  global.recordActivity = recordActivity
+  global.topChats = topChats
+  global.allActivity = allActivity
   global.allUsers = allUsers
   global.allChats = allChats
   global.flushDB = flushDB

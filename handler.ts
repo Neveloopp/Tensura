@@ -11,6 +11,7 @@ import {
   getChat,
   getSettings,
   getUser,
+  recordActivity,
   updateChat,
   updateUser,
   updateSettings,
@@ -167,6 +168,17 @@ export default async function handler(sock: any, m: any) {
   if (cmdData.botAdmin && !isBotAdmin) {
     return m.reply(permissionText('botAdmin', command)).catch(() => null)
   }
+
+  try {
+    recordActivity(
+      botId,
+      m.chat,
+      m.isGroup
+        ? groupTitle || chat.title || m.chat
+        : m.pushName || chat.title || jidNumber(m.chat),
+      m.isGroup ? 'group' : 'private'
+    )
+  } catch {}
 
   const now = moment().tz(botConfig.timezone)
   const time = now.format('DD/MM/YY HH:mm:ss')
