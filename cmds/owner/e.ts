@@ -18,6 +18,7 @@ export default {
     m,
     args,
     text,
+    rawText,
     command,
     prefix,
     usedPrefix,
@@ -29,9 +30,8 @@ export default {
     isOwner,
   }: any) {
     const conn = sock
-    if (!args.length) return m.reply(`Uso: ${usedPrefix || prefix || '#'}${command} <código>`)
-
-    const code = args.join(' ')
+    const code = String(rawText || args.join(' ')).trim()
+    if (!code) return m.reply(`Uso: ${usedPrefix || prefix || '#'}${command} <código>`)
     try {
       let result: any
       try {

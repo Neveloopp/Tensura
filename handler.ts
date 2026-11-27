@@ -108,6 +108,7 @@ export default async function handler(sock: any, m: any) {
   const [commandPart, ...args] = raw.split(/\s+/)
   const command = String(commandPart || '').toLowerCase()
   const text = args.join(' ')
+  const rawText = raw.slice(commandPart.length).replace(/^\s+/, '')
 
   if (m.fromMe && (m.isGroup || !prefix)) return
 
@@ -218,6 +219,7 @@ export default async function handler(sock: any, m: any) {
         args,
         command,
         text,
+        rawText,
         prefix,
         usedPrefix: prefix,
         settings: botSettings,

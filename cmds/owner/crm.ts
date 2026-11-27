@@ -22,8 +22,15 @@ const buildCode = (message: any) => {
     enums: String,
     bytes: String,
   })
-  const payload = Buffer.from(JSON.stringify(object), 'utf8').toString('base64')
-  return `.e const { proto } = await import('@whiskeysockets/baileys'); await sock.relayMessage(m.chat, proto.Message.fromObject(JSON.parse(Buffer.from('${payload}', 'base64').toString('utf8'))), {})`
+  const literal = JSON.stringify(object, null, 2).replace(/\n/g, '\n  ')
+  return [
+    ".e const { proto } = await import('@whiskeysockets/baileys');",
+    'await sock.relayMessage(',
+    '  m.chat,',
+    `  proto.Message.fromObject(${literal}),`,
+    '  {}',
+    ');',
+  ].join('\n')
 }
 
 export default {
